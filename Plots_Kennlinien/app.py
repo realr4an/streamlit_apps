@@ -8,12 +8,14 @@ import plotly.graph_objects as go
 import statsmodels.api as sm
 from statsmodels.formula.api import glm
 import streamlit as st
+import sys
 
 
 # ------------------------------------------------------------------
 # FESTE DATEI-PFAD-PARAMETER
 # ------------------------------------------------------------------
-DATA_DIR    = Path("Daten&Programme")
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "Daten&Programme"
 DATA_FILE   = "Kennlinien_Betriebskenngroessen_MitLosgroesse12468.xlsx"
 DESIGN_FILE = "CCDVariante2.xlsx"
 GRID_RES    = 60
