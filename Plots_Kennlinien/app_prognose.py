@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
+import patsy
 import scipy.stats as stats
 import statsmodels.api as sm
 from statsmodels.formula.api import glm
@@ -26,6 +27,7 @@ DATA_FILE    = "Kennlinien_Betriebskenngroessen_MitLosgroesse12468.xlsx"
 DESIGN_FILE  = "CCDVariante2.xlsx"
 ALPHA        = 0.05
 Z_975        = stats.norm.ppf(1 - ALPHA / 2)   # ≈ 1.960
+N_SIMS_BOOT  = 2000  # Anzahl Bootstrap‑Simulationen für PIs
 
 
 class ThroughputApp:
@@ -43,6 +45,7 @@ class ThroughputApp:
         self._build_grid()
         self._calc_prediction_interval()
         self._calc_se_mean()
+        self._calc_prediction_interval_bootstrap()
 
     # --------------------------------------------------------------
     # 1 – Daten laden & aufbereiten  (≈ R‑Abschnitt “load data”)
@@ -153,6 +156,31 @@ class ThroughputApp:
         self.grid["se_mean"] = pred.se_mean
 
     # --------------------------------------------------------------
+    # 4c – Bootstrap‑basierte Prediction Intervals (Parametrischer Bootstrap)
+    # --------------------------------------------------------------
+    def _calc_prediction_interval_bootstrap(self, n_sims: int = N_SIMS_BOOT):
+        rng = np.random.default_rng(42)
+        coef = self.model.params.values
+        cov  = self.model.cov_params().values
+        sims = rng.multivariate_normal(coef, cov, size=n_sims)
+        preds = np.empty((n_sims, len(self.grid)), dtype=float)
+
+        # Design‑Matrix für das Grid mittels Patsy‑DesignInfo aus dem Originalmodell
+        design_info = self.model.model.data.design_info
+        exog_grid = patsy.build_design_matrices([design_info], self.grid)[0]
+        exog_grid = np.asarray(exog_grid)
+
+        for i, beta in enumerate(sims):
+            linpred = exog_grid @ beta
+            mu = np.exp(linpred)  # Log‑Link
+            preds[i, :] = rng.poisson(mu)
+
+        lower_b = np.percentile(preds, 100 * ALPHA / 2, axis=0)
+        upper_b = np.percentile(preds, 100 * (1 - ALPHA / 2), axis=0)
+        self.grid["lower_boot"] = lower_b
+        self.grid["upper_boot"] = upper_b
+
+    # --------------------------------------------------------------
     # Helfer: FDS‑Kurve  (sorted SE vs. Fraction)
     # --------------------------------------------------------------
     def build_fds_curve(self) -> go.Figure:
@@ -236,11 +264,16 @@ class ThroughputApp:
         r, g, b = (int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
         return f"rgba({r},{g},{b},{alpha})"
 
-    def build_figure(self, sub: pd.DataFrame, cfg: dict) -> go.Figure:
+    def build_figure(self, sub: pd.DataFrame, cfg: dict, interval: str = "Delta") -> go.Figure:
         # Raster in Matrixform
         P = sub.pivot(index="loadunitcap", columns="systemload", values="prediction").values
-        L = sub.pivot(index="loadunitcap", columns="systemload", values="lower").values
-        U = sub.pivot(index="loadunitcap", columns="systemload", values="upper").values
+        if interval == "Bootstrap":
+            low_col, up_col = "lower_boot", "upper_boot"
+        else:
+            low_col, up_col = "lower", "upper"
+
+        L = sub.pivot(index="loadunitcap", columns="systemload", values=low_col).values
+        U = sub.pivot(index="loadunitcap", columns="systemload", values=up_col).values
         X, Y = np.meshgrid(
             sorted(sub["systemload"].unique()),
             sorted(sub["loadunitcap"].unique()),
@@ -373,6 +406,7 @@ def main():
         points_color = st.sidebar.color_picker("Farbe Punkte", "#FFFFFF"),
         show_lines   = st.sidebar.checkbox("Vorhersage‑Linien verbinden", False),
         lines_color  = st.sidebar.color_picker("Farbe Linien", "#FFFFFF"),
+        interval_type = st.sidebar.selectbox("Intervall‑Methode", ["Delta", "Bootstrap"]),
     )
 
     # Auswahl der Zoning‑Strategien
@@ -385,7 +419,7 @@ def main():
     with tab_plot:
         cols = st.columns(max(len(sel_zones), 1))
         for col, z in zip(cols, sel_zones):
-            fig = app.build_figure(app.grid[app.grid["zoning"] == z], cfg)
+            fig = app.build_figure(app.grid[app.grid["zoning"] == z], cfg, interval=cfg["interval_type"])
             col.subheader(f"{z} – 95 % Prognoseintervall")
             col.plotly_chart(fig, use_container_width=True)
 
