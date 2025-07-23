@@ -118,7 +118,13 @@ def build_figure(sub: pd.DataFrame, cfg: dict):
     # Layout
     fig.update_layout(
         margin=dict(l=5, r=5, t=35, b=5),
-        scene=dict(aspectratio=dict(x=1, y=1, z=0.6), camera=dict(eye=dict(x=1.4, y=1.4, z=0.85))),
+        scene=dict(
+            xaxis_title="Systemlast",
+            yaxis_title="Losgröße",
+            zaxis_title="Durchsatz",
+            aspectratio=dict(x=1, y=1, z=0.6),
+            camera=dict(eye=dict(x=1.4, y=1.4, z=0.85)),
+        ),
     )
     return fig
 
