@@ -375,7 +375,11 @@ class ThroughputApp:
                 zaxis_title="Durchsatz",
                 aspectratio=dict(x=1, y=1, z=0.6),
                 camera=dict(eye=dict(x=1.4, y=1.4, z=0.85)),
+                zaxis=dict(range=cfg.get("z_range")),
             ),
+        )
+        fig.update_traces(
+            hovertemplate="Systemlast: %{x}<br>Losgröße: %{y}<br>Durchsatz: %{z}<extra></extra>"
         )
         return fig
 
@@ -412,6 +416,18 @@ def main():
     # Auswahl der Zoning‑Strategien
     zones      = app.df["zoning"].cat.categories.tolist()
     sel_zones  = st.multiselect("Zoning‑Strategien:", zones, default=zones)
+
+    # Globalen z-Achsenbereich für Vergleichbarkeit bestimmen
+    if sel_zones:
+        plot_data = app.grid[app.grid["zoning"].isin(sel_zones)]
+        if not plot_data.empty:
+            if cfg["interval_type"] == "Bootstrap":
+                z_min = plot_data["lower_boot"].min()
+                z_max = plot_data["upper_boot"].max()
+            else:
+                z_min = plot_data["lower"].min()
+                z_max = plot_data["upper"].max()
+            cfg["z_range"] = [z_min, z_max]
 
     tab_plot, tab_design, tab_diag = st.tabs(["3‑D‑Plot", "Design‑Space FDS/VDG", "Diagnostik"])
 
