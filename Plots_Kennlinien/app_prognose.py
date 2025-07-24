@@ -1,7 +1,7 @@
 """
 app_prognoseintervall.py
 Streamlit‑App, die den Workflow des bereitgestellten R‑Skripts Schritt für Schritt repliziert
-(Data‑Import → Modellselektion → Vorhersage → 3‑D‑Plot mit 95‑%‑Prognoseintervall).
+(Data‑Import → Modellselektion → Vorhersage → 3‑D‑Plot mit 90‑%‑Prognoseintervall).
 
 Autor: (2025‑07‑23 Rewrite)
 """
@@ -25,8 +25,8 @@ BASE_DIR     = Path(__file__).resolve().parent
 DATA_DIR     = BASE_DIR / "Daten&Programme"
 DATA_FILE    = "Kennlinien_Betriebskenngroessen_MitLosgroesse12468.xlsx"
 DESIGN_FILE  = "CCDVariante2.xlsx"
-ALPHA        = 0.05
-Z_975        = stats.norm.ppf(1 - ALPHA / 2)   # ≈ 1.960
+ALPHA        = 0.10
+Z_95        = stats.norm.ppf(1 - ALPHA / 2)   # ≈ 1.645
 N_SIMS_BOOT  = 2000  # Anzahl Bootstrap‑Simulationen für PIs
 
 
@@ -136,7 +136,7 @@ class ThroughputApp:
         )
 
     # --------------------------------------------------------------
-    # 4 – Vorhersage + 95 % Prognoseintervall (Delta‑Methode)
+    # 4 – Vorhersage + 90 % Prognoseintervall (Delta‑Methode)
     # --------------------------------------------------------------
     def _calc_prediction_interval(self):
         pred = self.model.get_prediction(self.grid)
@@ -144,8 +144,8 @@ class ThroughputApp:
         se_mean = pred.se_mean                      # Varianz der Erwartungswerte
         var_tot = se_mean**2 + self.grid["prediction"]   # + Poisson‑Varianz
         se_pred = np.sqrt(var_tot)
-        self.grid["lower"] = (self.grid["prediction"] - Z_975 * se_pred).clip(lower=0)
-        self.grid["upper"] =  self.grid["prediction"] + Z_975 * se_pred
+        self.grid["lower"] = (self.grid["prediction"] - Z_95 * se_pred).clip(lower=0)
+        self.grid["upper"] =  self.grid["prediction"] + Z_95 * se_pred
 
     # --------------------------------------------------------------
     # 4b – Standardfehler des Erwartungswerts für FDS / VDG
@@ -391,7 +391,7 @@ def main():
     app = ThroughputApp()
 
     st.set_page_config(page_title="Kennlinien‑Viewer", layout="wide")
-    st.title("3‑D‑Kennlinien mit 95 % Prognoseintervall")
+    st.title("3‑D‑Kennlinien mit 90 % Prognoseintervall")
 
     # Sidebar – Anzeigeoptionen
     st.sidebar.header("Anzeige‑Einstellungen")
@@ -436,7 +436,7 @@ def main():
         cols = st.columns(max(len(sel_zones), 1))
         for col, z in zip(cols, sel_zones):
             fig = app.build_figure(app.grid[app.grid["zoning"] == z], cfg, interval=cfg["interval_type"])
-            col.subheader(f"{z} – 95 % Prognoseintervall")
+            col.subheader(f"{z} – 90 % Prognoseintervall")
             col.plotly_chart(fig, use_container_width=True)
 
     # --- Tab 2: Design‑Space‑Analyse (FDS & VDG) ---------------------------
