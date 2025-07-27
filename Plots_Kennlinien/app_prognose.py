@@ -281,13 +281,27 @@ class ThroughputApp:
 
         fig = go.Figure()
 
+        # Definiere das Hover-Template einmal, um es wiederzuverwenden
+        hovertemplate = (
+            "<b>Systemlast: %{x:.2f}</b><br>"
+            "<b>Losgröße: %{y:.2f}</b><br>"
+            "Prognose: %{customdata[0]:.2f}<br>"
+            "Untere Grenze: %{customdata[1]:.2f}<br>"
+            "Obere Grenze: %{customdata[2]:.2f}<extra></extra>"
+        )
+
+        # Alle Flächen erhalten die gleichen Custom-Daten für einen konsistenten Hover
+        customdata = np.stack([P, L, U], axis=-1)
+
         # Mittelfläche
         fig.add_surface(
             x=X, y=Y, z=P,
+            customdata=customdata,
             surfacecolor=np.zeros_like(P),
             colorscale=[[0, cfg["pred_color"]], [1, cfg["pred_color"]]],
             showscale=False,
             opacity=1,
+            hovertemplate=hovertemplate,
         )
 
         # Volumen (PI)
@@ -301,16 +315,19 @@ class ThroughputApp:
                     colorscale=[[0, rgba], [1, rgba]],
                     showscale=False,
                     opacity=cfg["fill_alpha"],
+                    hoverinfo="none",
                 )
 
         # Deckel
-        for Z, col in [(U, cfg["upper_color"]), (L, cfg["lower_color"])]:
+        for Z, col, name in [(U, cfg["upper_color"], "Obere Grenze"), (L, cfg["lower_color"], "Untere Grenze")]:
             fig.add_surface(
                 x=X, y=Y, z=Z,
+                customdata=customdata,
                 surfacecolor=np.zeros_like(Z),
                 colorscale=[[0, col], [1, col]],
                 showscale=False,
                 opacity=cfg["deckel_alpha"],
+                hovertemplate=hovertemplate,
             )
 
         # Seitenwände
@@ -325,6 +342,7 @@ class ThroughputApp:
                     colorscale=[[0, rgba], [1, rgba]],
                     showscale=False,
                     opacity=cfg["wall_alpha"],
+                    hoverinfo="none",
                 )
             for j in [0, -1]:  # links / rechts
                 fig.add_surface(
@@ -335,6 +353,7 @@ class ThroughputApp:
                     colorscale=[[0, rgba], [1, rgba]],
                     showscale=False,
                     opacity=cfg["wall_alpha"],
+                    hoverinfo="none",
                 )
 
         # --- Optional: einzelne Vorhersagepunkte & Linien verbinden -------------
@@ -348,6 +367,7 @@ class ThroughputApp:
                     marker=dict(size=3, color=cfg.get("points_color", "#FFFFFF")),
                     name="Predictions",
                     showlegend=False,
+                    hoverinfo="none",
                 )
             )
 
@@ -363,6 +383,7 @@ class ThroughputApp:
                         mode="lines",
                         line=dict(color=cfg.get("lines_color", "#FFFFFF"), width=2),
                         showlegend=False,
+                        hoverinfo="none",
                     )
                 )
 
@@ -377,9 +398,6 @@ class ThroughputApp:
                 camera=dict(eye=dict(x=1.4, y=1.4, z=0.85)),
                 zaxis=dict(range=cfg.get("z_range")),
             ),
-        )
-        fig.update_traces(
-            hovertemplate="Systemlast: %{x}<br>Losgröße: %{y}<br>Durchsatz: %{z}<extra></extra>"
         )
         return fig
 
