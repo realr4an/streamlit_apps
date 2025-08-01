@@ -21,17 +21,22 @@ DATA_FILE = BASE_DIR / "data.throughput.3d.csv"
 # ------------------------------------------------------------
 @st.cache_data
 def load_data() -> pd.DataFrame:
-    df = pd.read_csv(DATA_FILE, sep=";", decimal=",")
-    df = df.rename(
+    df = pd.read_csv(DATA_FILE, sep=";", decimal=",").rename(
         columns={
-            "coded_systemload": "systemload",      # einfacher Name
+            "coded_systemload": "systemload",      # codiert  –1 … +1
             "low.bootstrap":    "lower_boot",
             "up.bootstrap":     "upper_boot",
             "low.analytical":   "lower",
             "up.analytical":    "upper",
         }
     )
+
+    # --- NEW:  codierten Wert in die reale Systemlast (54-62) zurückrechnen
+    MID, HALF_RANGE = 58, 4                       #  (54 ↔ –1) … (62 ↔ +1)
+    df["systemload_raw"] = df["systemload"] * HALF_RANGE + MID
+
     return df
+
 
 
 # ------------------------------------------------------------
@@ -48,18 +53,18 @@ def _hex_rgba(hex_color: str, alpha: float) -> str:
 # ------------------------------------------------------------
 def build_figure(sub: pd.DataFrame, cfg: dict, interval: str = "Bootstrap") -> go.Figure:
     # Raster für Surface-Plot
-    P = sub.pivot(index="loadunitcap", columns="systemload", values="prediction").values
+    P = sub.pivot(index="loadunitcap", columns="systemload_raw", values="prediction").values
 
     if interval == "Bootstrap":
         low_col, up_col = "lower_boot", "upper_boot"
     else:
         low_col, up_col = "lower", "upper"
 
-    L = sub.pivot(index="loadunitcap", columns="systemload", values=low_col).values
-    U = sub.pivot(index="loadunitcap", columns="systemload", values=up_col).values
+    L = sub.pivot(index="loadunitcap", columns="systemload_raw", values=low_col).values
+    U = sub.pivot(index="loadunitcap", columns="systemload_raw", values=up_col).values
 
     X, Y = np.meshgrid(
-        sorted(sub["systemload"].unique()),
+        sorted(sub["systemload_raw"].unique()),
         sorted(sub["loadunitcap"].unique()),
     )
 
