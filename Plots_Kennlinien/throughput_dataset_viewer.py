@@ -30,7 +30,9 @@ def load_data() -> pd.DataFrame:
             "up.analytical":    "upper",
         }
     )
-
+    # --- FIX: Spalte explizit in numerischen Typ umwandeln
+    df["systemload"] = pd.to_numeric(df["systemload"])
+    
     # --- NEW:  codierten Wert in die reale Systemlast (54-62) zurückrechnen
     MID, HALF_RANGE = 58, 4                       #  (54 ↔ –1) … (62 ↔ +1)
     df["systemload_raw"] = df["systemload"] * HALF_RANGE + MID
