@@ -1,7 +1,7 @@
 # ------------------------------------------------------------
 # throughput_2d_delta_viewer.py
 # 2-D-Kennlinien-Viewer (nur Delta-Intervalle)
-# kompatibel mit data.throughput.2d*.xlsx
+# kompatibel mit data.mopt.2d*.xlsx
 # ------------------------------------------------------------
 from pathlib import Path
 import pandas as pd
@@ -9,36 +9,33 @@ import streamlit as st
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-
-
 BASE_DIR = Path(__file__).resolve().parent
 
 def _find_data_file() -> Path:
-    cands = sorted(BASE_DIR.glob("data.throughput.2d_10_30 2.xlsx"))
+    # neue Datei: data.mopt.2d_10_30.xlsx (ggf. weitere Varianten)
+    cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30.xlsx"))
     if not cands:
-        raise FileNotFoundError("Keine Datei data.throughput.2d*.xlsx im Skriptordner gefunden.")
+        raise FileNotFoundError("Keine Datei data.mopt.2d*.xlsx im Skriptordner gefunden.")
     return cands[0]
 
-def _rgba(hex_str: str, a: float) -> str:
-    h = hex_str.lstrip("#")
-    r, g, b = (int(h[i:i+2], 16) for i in (0, 2, 4))
-    return f"rgba({r},{g},{b},{a})"
+def _rgba(hex_color: str, alpha: float) -> str:
+    hex_color = hex_color.lstrip("#")
+    r, g, b = (int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    return f"rgba({r},{g},{b},{alpha})"
 
 @st.cache_data
 def load_data(path: Path) -> pd.DataFrame:
-
     import warnings
     warnings.filterwarnings(
         "ignore",
         message="Workbook contains no default style",
         category=UserWarning,
-        module="openpyxl"
+        module="openpyxl",
     )
-    df = pd.read_excel(path)
 
     df = pd.read_excel(path)
 
-    # Spalten harmonisieren (unterstützt alte & neue Schemata)
+    # Spalten harmonisieren (MOPT-Datensatz)
     rename_map = {
         # X
         "systemload": "systemload",
@@ -49,18 +46,23 @@ def load_data(path: Path) -> pd.DataFrame:
         # y
         "prediction": "prediction",
         "predicted_throughput": "prediction",
+        "predicted_mopt": "prediction",          # << neu: MOPT
         # Intervalle (nur Delta)
         "low.delta": "low_delta",
         "up.delta":  "up_delta",
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
 
+    # Unnötige Indexspalte ggf. droppen
+    if "Unnamed: 0" in df.columns:
+        df = df.drop(columns=["Unnamed: 0"])
+
     # Fallback, falls 'source' fehlt -> eine Gruppe "ALL"
     if "source" not in df.columns:
         df["source"] = "ALL"
 
     # numerische Typen absichern
-    for col in ["systemload","prediction","low_delta","up_delta"]:
+    for col in ["systemload", "prediction", "low_delta", "up_delta"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
@@ -83,13 +85,14 @@ def build_facets(df: pd.DataFrame,
     x_title = "System load (raw)" if use_raw_x else "System load"
 
     sub = df[df["zoning"].isin(zones) & df["source"].isin(sources)].copy()
+    has_delta = {"low_delta", "up_delta"}.issubset(sub.columns)
 
     # Gemeinsamer y-Bereich über alle Panels (nur Delta)
     y_range = None
-    if y_lock and {"low_delta","up_delta"}.issubset(sub.columns) and not sub.empty:
+    if y_lock and has_delta and not sub.empty:
         y_range = [float(sub["low_delta"].min()), float(sub["up_delta"].max())]
 
-    order = ["BU","TD","RA","SQ"]
+    order = ["BU", "TD", "RA", "SQ"]
     zones = [z for z in order if z in zones]
     fig = make_subplots(rows=2, cols=2, subplot_titles=zones)
     cells = [(1,1),(1,2),(2,1),(2,2)]
@@ -104,7 +107,7 @@ def build_facets(df: pd.DataFrame,
                 continue
 
             # Delta-Ribbon (falls vorhanden)
-            if {"low_delta","up_delta"}.issubset(d.columns):
+            if has_delta:
                 fig.add_trace(
                     go.Scatter(x=d[x_col], y=d["low_delta"],
                                mode="lines", line=dict(width=0),
@@ -164,7 +167,6 @@ def main():
     col_ex = st.sidebar.color_picker("EX", "#009E73")
     ribbon_alpha = st.sidebar.slider("Ribbon-Transparenz", 0.05, 0.9, 0.18, 0.01)
 
-    # Farbzuordnung (Fallback für unbekannte Quellen)
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
 
     if zones and sources:
