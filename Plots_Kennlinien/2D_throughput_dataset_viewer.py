@@ -9,10 +9,12 @@ import streamlit as st
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+
+
 BASE_DIR = Path(__file__).resolve().parent
 
 def _find_data_file() -> Path:
-    cands = sorted(BASE_DIR.glob("data.throughput.2d*.xlsx"))
+    cands = sorted(BASE_DIR.glob("data.throughput.2d_10_30 2.xlsx"))
     if not cands:
         raise FileNotFoundError("Keine Datei data.throughput.2d*.xlsx im Skriptordner gefunden.")
     return cands[0]
@@ -24,6 +26,16 @@ def _rgba(hex_str: str, a: float) -> str:
 
 @st.cache_data
 def load_data(path: Path) -> pd.DataFrame:
+
+    import warnings
+    warnings.filterwarnings(
+        "ignore",
+        message="Workbook contains no default style",
+        category=UserWarning,
+        module="openpyxl"
+    )
+    df = pd.read_excel(path)
+
     df = pd.read_excel(path)
 
     # Spalten harmonisieren (unterstützt alte & neue Schemata)
