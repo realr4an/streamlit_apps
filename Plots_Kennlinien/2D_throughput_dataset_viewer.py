@@ -11,9 +11,23 @@ from plotly.subplots import make_subplots
 
 BASE_DIR = Path(__file__).resolve().parent
 
+# --------- Anzeigenamen (Mappings) ----------
+ZONE_MAP = {
+    "BU": "Bottom-up",
+    "TD": "Top-down",
+    "RA": "Random",
+    "SQ": "Shortest queue",
+}
+
+SOURCE_MAP = {
+    "TA": "Tacted",
+    "NO": "Normal",
+    "EX": "Exponential",
+}
+
 def _find_data_file() -> Path:
     # neue Datei: data.mopt.2d_10_30.xlsx (ggf. weitere Varianten)
-    cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30.xlsx"))
+    cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30 1.xlsx"))
     if not cands:
         raise FileNotFoundError("Keine Datei data.mopt.2d*.xlsx im Skriptordner gefunden.")
     return cands[0]
@@ -46,7 +60,7 @@ def load_data(path: Path) -> pd.DataFrame:
         # y
         "prediction": "prediction",
         "predicted_throughput": "prediction",
-        "predicted_mopt": "prediction",          # << neu: MOPT
+        "predicted_mopt": "prediction",          # MOPT
         # Intervalle (nur Delta)
         "low.delta": "low_delta",
         "up.delta":  "up_delta",
@@ -71,6 +85,12 @@ def load_data(path: Path) -> pd.DataFrame:
     if "systemload" in df.columns:
         df["systemload_raw"] = df["systemload"] * HALF_RANGE + MID
 
+    # Kategorien normalisieren, damit Mapping sicher greift
+    if "zoning" in df.columns:
+        df["zoning"] = df["zoning"].astype(str).str.upper().str.strip()
+    if "source" in df.columns:
+        df["source"] = df["source"].astype(str).str.upper().str.strip()
+
     return df
 
 def build_facets(df: pd.DataFrame,
@@ -82,7 +102,7 @@ def build_facets(df: pd.DataFrame,
                  ribbon_alpha: float) -> go.Figure:
 
     x_col   = "systemload_raw" if use_raw_x else "systemload"
-    x_title = "System load (raw)" if use_raw_x else "System load"
+    x_title = "Systemlast (54–62)" if use_raw_x else "Systemlast (kodiert –1…+1)"
 
     sub = df[df["zoning"].isin(zones) & df["source"].isin(sources)].copy()
     has_delta = {"low_delta", "up_delta"}.issubset(sub.columns)
@@ -92,9 +112,16 @@ def build_facets(df: pd.DataFrame,
     if y_lock and has_delta and not sub.empty:
         y_range = [float(sub["low_delta"].min()), float(sub["up_delta"].max())]
 
+    # feste Reihenfolge der Panels
     order = ["BU", "TD", "RA", "SQ"]
     zones = [z for z in order if z in zones]
-    fig = make_subplots(rows=2, cols=2, subplot_titles=zones)
+
+    # Subplot-Titel (ausgeschrieben) und auf 4 Felder auffüllen
+    titles = [ZONE_MAP.get(z, z) for z in zones]
+    while len(titles) < 4:
+        titles.append("")
+
+    fig = make_subplots(rows=2, cols=2, subplot_titles=titles)
     cells = [(1,1),(1,2),(2,1),(2,2)]
 
     for idx, z in enumerate(zones):
@@ -125,22 +152,23 @@ def build_facets(df: pd.DataFrame,
                     row=r, col=c
                 )
 
-            # Mittellinie
+            # Mittellinie (Legende mit ausgeschriebenem Namen)
             fig.add_trace(
                 go.Scatter(x=d[x_col], y=d["prediction"],
                            mode="lines",
                            line=dict(color=colors.get(src, "#444444"), width=2),
-                           name=src, legendgroup=src,
+                           name=SOURCE_MAP.get(src, src),
+                           legendgroup=src,
                            showlegend=(idx == 0)),
                 row=r, col=c
             )
 
         fig.update_xaxes(title_text=x_title, row=r, col=c)
-        fig.update_yaxes(title_text="Throughput", row=r, col=c, range=y_range)
+        fig.update_yaxes(title_text="Mean order processing time", row=r, col=c, range=y_range)
 
     fig.update_layout(
         height=720, width=1200,
-        title="Throughput vs. System load — Delta-Prognoseintervalle",
+        title="Mean order processing time — Delta-Prognoseintervalle",
         margin=dict(l=10, r=10, t=60, b=10),
         legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.05)
     )
@@ -154,17 +182,33 @@ def main():
     df = load_data(path)
 
     st.sidebar.header("Anzeige")
-    zones   = st.sidebar.multiselect("Zoning", ["BU","TD","RA","SQ"], default=["BU","TD","RA","SQ"])
-    sources = st.sidebar.multiselect("source", sorted(df["source"].unique()),
-                                     default=sorted(df["source"].unique()))
+
+    # Multiselect: zeigt ausgeschriebene Namen, liefert intern Kürzel
+    zone_options = ["BU","TD","RA","SQ"]
+    zones = st.sidebar.multiselect(
+        "Zoning",
+        options=zone_options,
+        default=zone_options,
+        format_func=lambda z: ZONE_MAP.get(z, z),
+    )
+
+    source_options = sorted(df["source"].dropna().unique().tolist())
+    sources = st.sidebar.multiselect(
+        "Source",
+        options=source_options,
+        default=source_options,
+        format_func=lambda s: SOURCE_MAP.get(s, s),
+    )
+
     use_raw_x = st.sidebar.checkbox("X-Achse: reale Systemlast (54–62)", True)
     y_lock    = st.sidebar.checkbox("Einheitlicher y-Bereich über Panels", True)
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Farben")
-    col_ta = st.sidebar.color_picker("TA", "#D55E00")
-    col_no = st.sidebar.color_picker("NO", "#0072B2")
-    col_ex = st.sidebar.color_picker("EX", "#009E73")
+    # Labels ausgeschrieben, intern weiter TA/NO/EX
+    col_ta = st.sidebar.color_picker("Tacted", "#D55E00")
+    col_no = st.sidebar.color_picker("Normal", "#0072B2")
+    col_ex = st.sidebar.color_picker("Exponential", "#009E73")
     ribbon_alpha = st.sidebar.slider("Ribbon-Transparenz", 0.05, 0.9, 0.18, 0.01)
 
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
