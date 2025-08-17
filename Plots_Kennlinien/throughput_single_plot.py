@@ -10,13 +10,20 @@ import plotly.graph_objects as go
 
 BASE_DIR = Path(__file__).resolve().parent
 
-# ----------------------- Zonen-Mapping ----------------------
-# Kürzel → Anzeigename
+# ----------------------- Mappings ---------------------------
+# Zonen: Kürzel → Anzeigename
 ZONE_MAP = {
-    "BU": "Bottom-Up",       # bei Bedarf hier "Bottem-Up" schreiben
+    "BU": "Bottom-Up",       # ggf. "Bottem-Up" schreiben
     "TD": "Top-Down",
     "RA": "Random",
     "SQ": "Shortest Queue",
+}
+
+# Quellen: Kürzel → Anzeigename
+SOURCE_MAP = {
+    "TA": "Tacted",
+    "NO": "Normal",
+    "EX": "Exponential",
 }
 
 # ----------------------- Datei finden -----------------------
@@ -80,19 +87,23 @@ def load_data(path: Path) -> pd.DataFrame:
         MID, HALF_RANGE = 58, 4  # (54 ↔ –1) … (62 ↔ +1)
         df["systemload_raw"] = df["systemload"] * HALF_RANGE + MID
 
-    # Zoning auf String normalisieren
+    # Zoning normalisieren  (wichtig: .str.upper(), nicht .upper())
     if "zoning" in df.columns:
         df["zoning"] = df["zoning"].astype(str).str.upper().str.strip()
+
+    # Source normalisieren
+    if "source" in df.columns:
+        df["source"] = df["source"].astype(str).str.upper().str.strip()
 
     return df
 
 # ----------------------- Plot bauen -------------------------
 def build_single_plot(df: pd.DataFrame, zone: str, sources, use_raw_x: bool, colors: dict, line_width: int) -> go.Figure:
     xcol = "systemload_raw" if use_raw_x else "systemload"
-    xtitle = "Systemlast (54–62)" if use_raw_x else "Systemlast (kodiert –1…+1)"
+    xtitle = "Coded source parameter" if use_raw_x else "source parameter"
 
     d = df[df["zoning"] == zone]
-    # feste Reihenfolge wie im Screenshot
+    # feste Reihenfolge für die bekannten Quellen
     order = [s for s in ["TA", "NO", "EX"] if s in sources] + [s for s in sources if s not in ["TA", "NO", "EX"]]
 
     fig = go.Figure()
@@ -105,7 +116,7 @@ def build_single_plot(df: pd.DataFrame, zone: str, sources, use_raw_x: bool, col
                 x=s[xcol],
                 y=s["prediction"],
                 mode="lines",
-                name=src,
+                name=SOURCE_MAP.get(src, src),  # Legende: ausgeschriebener Name
                 line=dict(color=colors.get(src, None), width=line_width),
             )
         )
@@ -115,7 +126,7 @@ def build_single_plot(df: pd.DataFrame, zone: str, sources, use_raw_x: bool, col
         height=700,
         width=700,
         margin=dict(l=40, r=20, t=20, b=40),
-        legend=dict(title="source"),
+        legend=dict(title="Source"),
     )
     fig.update_xaxes(title_text=xtitle, range=[-1, 1] if not use_raw_x else None, zeroline=False)
     fig.update_yaxes(title_text="Throughput", zeroline=False)
@@ -141,10 +152,15 @@ def main():
         format_func=lambda z: ZONE_MAP.get(z, z),  # Anzeige: langer Name
     )
 
-    # Quellen-Auswahl
+    # Quellen-Auswahl (zeigt lange Namen, liefert intern Kürzel)
     sources_all = sorted(df["source"].dropna().unique().tolist())
     default_sources = [s for s in ["TA", "NO", "EX"] if s in sources_all] or sources_all
-    sources = st.multiselect("source", sources_all, default=default_sources)
+    sources = st.multiselect(
+        "Source",
+        options=sources_all,
+        default=default_sources,
+        format_func=lambda s: SOURCE_MAP.get(s, s),  # Anzeige: langer Name
+    )
 
     use_raw_x = st.checkbox("X-Achse: reale Systemlast (54–62)", value=True)
     line_width = st.slider("Linienbreite", 1, 6, 3, 1)
@@ -152,11 +168,12 @@ def main():
     st.markdown("**Farben**")
     col1, col2, col3 = st.columns(3)
     with col1:
-        col_ta = st.color_picker("TA", "#D55E00")
+        col_ta = st.color_picker("Tacted", "#D55E00")
     with col2:
-        col_no = st.color_picker("NO", "#7A88C2")
+        col_no = st.color_picker("Normal", "#7A88C2")
     with col3:
-        col_ex = st.color_picker("EX", "#7CC68E")
+        col_ex = st.color_picker("Exponential", "#7CC68E")
+    # Farben bleiben intern auf Kürzel gemappt
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
 
     # Plot
