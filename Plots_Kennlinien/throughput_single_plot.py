@@ -1,6 +1,6 @@
 # ------------------------------------------------------------
 # throughput_single_plot_app.py
-# Ein einzelner 2D-Plot (Systemlast vs. Throughput) in Streamlit
+# Ein einzelner 2D-Plot (kodierte Systemlast –1…+1 vs. Throughput)
 # ------------------------------------------------------------
 from pathlib import Path
 import warnings
@@ -13,7 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent
 # ----------------------- Mappings ---------------------------
 # Zonen: Kürzel → Anzeigename
 ZONE_MAP = {
-    "BU": "Bottom-Up",       # ggf. "Bottem-Up" schreiben
+    "BU": "Bottom-Up",
     "TD": "Top-Down",
     "RA": "Random",
     "SQ": "Shortest Queue",
@@ -82,25 +82,18 @@ def load_data(path: Path) -> pd.DataFrame:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    # Reale Systemlast (54–62) aus kodierter (–1…+1) zurückrechnen
-    if "systemload" in df.columns:
-        MID, HALF_RANGE = 58, 4  # (54 ↔ –1) … (62 ↔ +1)
-        df["systemload_raw"] = df["systemload"] * HALF_RANGE + MID
-
-    # Zoning normalisieren  (wichtig: .str.upper(), nicht .upper())
+    # Kategorientexte normalisieren
     if "zoning" in df.columns:
         df["zoning"] = df["zoning"].astype(str).str.upper().str.strip()
-
-    # Source normalisieren
     if "source" in df.columns:
         df["source"] = df["source"].astype(str).str.upper().str.strip()
 
     return df
 
 # ----------------------- Plot bauen -------------------------
-def build_single_plot(df: pd.DataFrame, zone: str, sources, use_raw_x: bool, colors: dict, line_width: int) -> go.Figure:
-    xcol = "systemload_raw" if use_raw_x else "systemload"
-    xtitle = "Coded source parameter" if use_raw_x else "source parameter"
+def build_single_plot(df: pd.DataFrame, zone: str, sources, colors: dict, line_width: int) -> go.Figure:
+    xcol = "systemload"  # immer kodiert –1…+1
+    xtitle = "Coded source parameter"
 
     d = df[df["zoning"] == zone]
     # feste Reihenfolge für die bekannten Quellen
@@ -128,7 +121,13 @@ def build_single_plot(df: pd.DataFrame, zone: str, sources, use_raw_x: bool, col
         margin=dict(l=40, r=20, t=20, b=40),
         legend=dict(title="Source"),
     )
-    fig.update_xaxes(title_text=xtitle, range=[-1, 1] if not use_raw_x else None, zeroline=False)
+    fig.update_xaxes(
+        title_text=xtitle,
+        range=[-1, 1],
+        tickmode="array",
+        tickvals=[-1, -0.5, 0, 0.5, 1],
+        zeroline=False
+    )
     fig.update_yaxes(title_text="Throughput", zeroline=False)
     return fig
 
@@ -162,7 +161,6 @@ def main():
         format_func=lambda s: SOURCE_MAP.get(s, s),  # Anzeige: langer Name
     )
 
-    use_raw_x = st.checkbox("X-Achse: reale Systemlast (54–62)", value=True)
     line_width = st.slider("Linienbreite", 1, 6, 3, 1)
 
     st.markdown("**Farben**")
@@ -178,7 +176,7 @@ def main():
 
     # Plot
     if zone and sources:
-        fig = build_single_plot(df, zone, sources, use_raw_x, colors, line_width)
+        fig = build_single_plot(df, zone, sources, colors, line_width)
         st.plotly_chart(fig, use_container_width=False)
         st.caption(f"Zoning: {ZONE_MAP.get(zone, zone)}")
     else:

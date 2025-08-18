@@ -25,6 +25,8 @@ SOURCE_MAP = {
     "EX": "Exponential",
 }
 
+SOURCE_ORDER = ["TA", "NO", "EX"]  # gewünschte Reihenfolge
+
 def _find_data_file() -> Path:
     # neue Datei: data.mopt.2d_10_30.xlsx (ggf. weitere Varianten)
     cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30 1.xlsx"))
@@ -80,11 +82,6 @@ def load_data(path: Path) -> pd.DataFrame:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # reale Systemlast (54–62) zusätzlich
-    MID, HALF_RANGE = 58, 4
-    if "systemload" in df.columns:
-        df["systemload_raw"] = df["systemload"] * HALF_RANGE + MID
-
     # Kategorien normalisieren, damit Mapping sicher greift
     if "zoning" in df.columns:
         df["zoning"] = df["zoning"].astype(str).str.upper().str.strip()
@@ -93,16 +90,21 @@ def load_data(path: Path) -> pd.DataFrame:
 
     return df
 
+def _order_sources(sources: list[str]) -> list[str]:
+    in_data_ordered = [s for s in SOURCE_ORDER if s in sources]
+    leftovers = [s for s in sources if s not in SOURCE_ORDER]
+    return in_data_ordered + leftovers
+
 def build_facets(df: pd.DataFrame,
                  zones: list[str],
                  sources: list[str],
-                 use_raw_x: bool,
                  y_lock: bool,
                  colors: dict[str, str],
                  ribbon_alpha: float) -> go.Figure:
 
-    x_col   = "systemload_raw" if use_raw_x else "systemload"
-    x_title = "Systemlast (54–62)" if use_raw_x else "Systemlast (kodiert –1…+1)"
+    # Immer kodierte Achse –1…+1
+    x_col   = "systemload"
+    x_title = "Coded source parameter"
 
     sub = df[df["zoning"].isin(zones) & df["source"].isin(sources)].copy()
     has_delta = {"low_delta", "up_delta"}.issubset(sub.columns)
@@ -124,11 +126,14 @@ def build_facets(df: pd.DataFrame,
     fig = make_subplots(rows=2, cols=2, subplot_titles=titles)
     cells = [(1,1),(1,2),(2,1),(2,2)]
 
+    # Reihenfolge der Serien im Plot/Legende
+    sources_ordered = _order_sources(sources)
+
     for idx, z in enumerate(zones):
         r, c = cells[idx]
         d_z = sub[sub["zoning"] == z]
 
-        for src in sources:
+        for src in sources_ordered:
             d = d_z[d_z["source"] == src].sort_values(x_col)
             if d.empty:
                 continue
@@ -163,7 +168,14 @@ def build_facets(df: pd.DataFrame,
                 row=r, col=c
             )
 
-        fig.update_xaxes(title_text=x_title, row=r, col=c)
+        fig.update_xaxes(
+            title_text=x_title,
+            range=[-1, 1],
+            tickmode="array",
+            tickvals=[-1, -0.5, 0, 0.5, 1],
+            zeroline=False,
+            row=r, col=c
+        )
         fig.update_yaxes(title_text="Mean order processing time", row=r, col=c, range=y_range)
 
     fig.update_layout(
@@ -183,7 +195,7 @@ def main():
 
     st.sidebar.header("Anzeige")
 
-    # Multiselect: zeigt ausgeschriebene Namen, liefert intern Kürzel
+    # Multiselect: Zonen in fixer Reihenfolge, Anzeige ausgeschrieben
     zone_options = ["BU","TD","RA","SQ"]
     zones = st.sidebar.multiselect(
         "Zoning",
@@ -192,7 +204,9 @@ def main():
         format_func=lambda z: ZONE_MAP.get(z, z),
     )
 
-    source_options = sorted(df["source"].dropna().unique().tolist())
+    # Sources in gewünschter Reihenfolge, Anzeige ausgeschrieben
+    sources_in_data = df["source"].dropna().unique().tolist()
+    source_options = _order_sources(sources_in_data)
     sources = st.sidebar.multiselect(
         "Source",
         options=source_options,
@@ -200,8 +214,7 @@ def main():
         format_func=lambda s: SOURCE_MAP.get(s, s),
     )
 
-    use_raw_x = st.sidebar.checkbox("X-Achse: reale Systemlast (54–62)", True)
-    y_lock    = st.sidebar.checkbox("Einheitlicher y-Bereich über Panels", True)
+    y_lock = st.sidebar.checkbox("Einheitlicher y-Bereich über Panels", True)
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Farben")
@@ -214,12 +227,12 @@ def main():
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
 
     if zones and sources:
-        fig = build_facets(df, zones, sources, use_raw_x, y_lock, colors, ribbon_alpha)
+        fig = build_facets(df, zones, sources, y_lock, colors, ribbon_alpha)
         st.plotly_chart(fig, use_container_width=True)
         if not {"low_delta","up_delta"}.issubset(df.columns):
             st.warning("Delta-Intervalle nicht im Datensatz gefunden – es wird nur die Mittellinie gezeichnet.")
     else:
-        st.info("Bitte mindestens eine Zoning-Strategie und eine Quelle auswählen.")
+        st.info("Bitte mindestens eine Zoning-Strategie und eine Quelle wählen.")
 
 if __name__ == "__main__":
     main()
