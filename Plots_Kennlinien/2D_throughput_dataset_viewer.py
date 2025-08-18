@@ -66,6 +66,7 @@ def build_facets(df: pd.DataFrame,
                  sources: list[str],
                  y_lock: bool,
                  y_zero: bool,
+                 y_top_pad: float,          # <-- NEU: absoluter Puffer oben
                  colors: dict[str, str],
                  ribbon_alpha: float) -> go.Figure:
 
@@ -79,13 +80,13 @@ def build_facets(df: pd.DataFrame,
     # Globaler y-Bereich?
     y_range_global = None
     if y_lock and not sub.empty:
-        if has_delta:
-            ymax = float(sub["up_delta"].max())
-        else:
-            ymax = float(sub["prediction"].max())
-        ymin = 0.0 if y_zero else (float(sub["low_delta"].min()) if has_delta else float(sub["prediction"].min()))
+        base_ymax = float(sub["up_delta"].max()) if has_delta else float(sub["prediction"].max())
+        ymax = base_ymax + float(y_top_pad)
         if y_zero:
             ymin = 0.0
+        else:
+            base_ymin = float(sub["low_delta"].min()) if has_delta else float(sub["prediction"].min())
+            ymin = base_ymin
         y_range_global = [ymin, ymax]
 
     order = ["BU","TD","RA","SQ"]
@@ -138,12 +139,13 @@ def build_facets(df: pd.DataFrame,
             zeroline=False, row=r, col=c
         )
 
-        # Y-Achse: globaler Bereich oder panel-spezifisch
+        # Y-Achse: globaler Bereich oder panel-spezifisch mit Puffer
         if y_range_global is not None:
             fig.update_yaxes(title_text="Mean order processing time",
                              range=y_range_global, row=r, col=c)
         else:
             if y_zero:
+                # panel-spezifisch ab 0, Obergrenze = max + Puffer
                 panel_ymax = (float(d_z["up_delta"].max()) if has_delta else float(d_z["prediction"].max()))
                 fig.update_yaxes(title_text="Mean order processing time",
                                  range=[0.0, panel_ymax + float(y_top_pad)], row=r, col=c)
@@ -184,6 +186,7 @@ def main():
 
     y_lock = st.sidebar.checkbox("Einheitlicher y-Bereich über Panels", True)
     y_zero = st.sidebar.checkbox("Y-Achse bei 0 beginnen lassen", False)
+    y_top_pad = st.sidebar.number_input("Puffer oben (+)", min_value=0.0, value=20.0, step=1.0)  # <-- NEU
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Farben")
@@ -194,7 +197,7 @@ def main():
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
 
     if zones and sources:
-        fig = build_facets(df, zones, sources, y_lock, y_zero, colors, ribbon_alpha)
+        fig = build_facets(df, zones, sources, y_lock, y_zero, y_top_pad, colors, ribbon_alpha)
         st.plotly_chart(fig, use_container_width=True)
         if not {"low_delta","up_delta"}.issubset(df.columns):
             st.warning("Delta-Intervalle nicht im Datensatz gefunden – es wird nur die Mittellinie gezeichnet.")
