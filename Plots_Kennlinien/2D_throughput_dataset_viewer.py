@@ -144,11 +144,14 @@ def build_facets(df: pd.DataFrame,
                              range=y_range_global, row=r, col=c)
         else:
             if y_zero:
-                # Panel-spezifisch ab 0, obere Grenze automatisch
+                panel_ymax = (float(d_z["up_delta"].max()) if has_delta else float(d_z["prediction"].max()))
                 fig.update_yaxes(title_text="Mean order processing time",
-                                 rangemode="tozero", row=r, col=c)
+                                 range=[0.0, panel_ymax + float(y_top_pad)], row=r, col=c)
             else:
-                fig.update_yaxes(title_text="Mean order processing time", row=r, col=c)
+                panel_ymin = (float(d_z["low_delta"].min()) if has_delta else float(d_z["prediction"].min()))
+                panel_ymax = (float(d_z["up_delta"].max()) if has_delta else float(d_z["prediction"].max()))
+                fig.update_yaxes(title_text="Mean order processing time",
+                                 range=[panel_ymin, panel_ymax + float(y_top_pad)], row=r, col=c)
 
     fig.update_layout(
         height=720, width=1200,
