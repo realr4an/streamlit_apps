@@ -4,6 +4,7 @@
 # ------------------------------------------------------------
 from pathlib import Path
 import pandas as pd
+import numpy as np
 import streamlit as st
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -61,12 +62,20 @@ def _order_sources(sources: list[str]) -> list[str]:
     leftovers = [s for s in sources if s not in SOURCE_ORDER]
     return in_data_ordered + leftovers
 
+def _nan_safe_min(series: pd.Series, default: float = 0.0) -> float:
+    val = series.min(skipna=True)
+    return float(val) if pd.notna(val) else default
+
+def _nan_safe_max(series: pd.Series, default: float = 0.0) -> float:
+    val = series.max(skipna=True)
+    return float(val) if pd.notna(val) else default
+
 def build_facets(df: pd.DataFrame,
                  zones: list[str],
                  sources: list[str],
                  y_lock: bool,
                  y_zero: bool,
-                 y_top_pad: float,          # <-- NEU: absoluter Puffer oben
+                 y_top_pad: float,
                  colors: dict[str, str],
                  ribbon_alpha: float) -> go.Figure:
 
@@ -77,16 +86,13 @@ def build_facets(df: pd.DataFrame,
     sub = df[df["zoning"].isin(zones) & df["Source"].isin(sources)].copy()
     has_delta = {"low_delta", "up_delta"}.issubset(sub.columns)
 
-    # Globaler y-Bereich?
+    # Globaler y-Bereich (mit Puffer)
     y_range_global = None
     if y_lock and not sub.empty:
-        base_ymax = float(sub["up_delta"].max()) if has_delta else float(sub["prediction"].max())
+        base_ymax = _nan_safe_max(sub["up_delta"] if has_delta else sub["prediction"])
+        base_ymin = _nan_safe_min(sub["low_delta"] if has_delta else sub["prediction"])
+        ymin = 0.0 if y_zero else base_ymin
         ymax = base_ymax + float(y_top_pad)
-        if y_zero:
-            ymin = 0.0
-        else:
-            base_ymin = float(sub["low_delta"].min()) if has_delta else float(sub["prediction"].min())
-            ymin = base_ymin
         y_range_global = [ymin, ymax]
 
     order = ["BU","TD","RA","SQ"]
@@ -134,7 +140,7 @@ def build_facets(df: pd.DataFrame,
 
         # X-Achse fix –1…+1
         fig.update_xaxes(
-            title_text=x_title, range=[-1, 1],
+            title_text=x_title, range=[-1, 1], autorange=False,
             tickmode="array", tickvals=[-1, -0.5, 0, 0.5, 1],
             zeroline=False, row=r, col=c
         )
@@ -142,18 +148,19 @@ def build_facets(df: pd.DataFrame,
         # Y-Achse: globaler Bereich oder panel-spezifisch mit Puffer
         if y_range_global is not None:
             fig.update_yaxes(title_text="Mean order processing time",
-                             range=y_range_global, row=r, col=c)
+                             range=y_range_global, autorange=False, row=r, col=c)
         else:
             if y_zero:
-                # panel-spezifisch ab 0, Obergrenze = max + Puffer
-                panel_ymax = (float(d_z["up_delta"].max()) if has_delta else float(d_z["prediction"].max()))
+                panel_ymax = _nan_safe_max(d_z["up_delta"] if has_delta else d_z["prediction"])
                 fig.update_yaxes(title_text="Mean order processing time",
-                                 range=[0.0, panel_ymax + float(y_top_pad)], row=r, col=c)
+                                 range=[0.0, panel_ymax + float(y_top_pad)],
+                                 autorange=False, row=r, col=c)
             else:
-                panel_ymin = (float(d_z["low_delta"].min()) if has_delta else float(d_z["prediction"].min()))
-                panel_ymax = (float(d_z["up_delta"].max()) if has_delta else float(d_z["prediction"].max()))
+                panel_ymin = _nan_safe_min(d_z["low_delta"] if has_delta else d_z["prediction"])
+                panel_ymax = _nan_safe_max(d_z["up_delta"] if has_delta else d_z["prediction"])
                 fig.update_yaxes(title_text="Mean order processing time",
-                                 range=[panel_ymin, panel_ymax + float(y_top_pad)], row=r, col=c)
+                                 range=[panel_ymin, panel_ymax + float(y_top_pad)],
+                                 autorange=False, row=r, col=c)
 
     fig.update_layout(
         height=720, width=1200,
@@ -186,7 +193,7 @@ def main():
 
     y_lock = st.sidebar.checkbox("Einheitlicher y-Bereich über Panels", True)
     y_zero = st.sidebar.checkbox("Y-Achse bei 0 beginnen lassen", False)
-    y_top_pad = st.sidebar.number_input("Puffer oben (+)", min_value=0.0, value=20.0, step=1.0)  # <-- NEU
+    y_top_pad = st.sidebar.number_input("Puffer oben (+)", min_value=0.0, value=20.0, step=1.0, format="%.0f")
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Farben")
@@ -198,7 +205,11 @@ def main():
 
     if zones and sources:
         fig = build_facets(df, zones, sources, y_lock, y_zero, y_top_pad, colors, ribbon_alpha)
-        st.plotly_chart(fig, use_container_width=True)
+        # WICHTIG: key abhängig vom Puffer (und y_lock/y_zero), damit Streamlit neu zeichnet
+        st.plotly_chart(
+            fig, use_container_width=True,
+            key=f"facets-{y_lock}-{y_zero}-{y_top_pad}"
+        )
         if not {"low_delta","up_delta"}.issubset(df.columns):
             st.warning("Delta-Intervalle nicht im Datensatz gefunden – es wird nur die Mittellinie gezeichnet.")
     else:
