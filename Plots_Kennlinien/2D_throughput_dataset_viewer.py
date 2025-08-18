@@ -15,7 +15,7 @@ SOURCE_MAP = {"TA": "Tacted","NO": "Normal","EX": "Exponential"}
 SOURCE_ORDER = ["TA","NO","EX"]
 
 def _find_data_file() -> Path:
-    cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30 1.xlsx"))
+    cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30 2.xlsx"))
     if not cands:
         raise FileNotFoundError("Keine Datei data.mopt.2d*.xlsx im Skriptordner gefunden.")
     return cands[0]
@@ -45,15 +45,15 @@ def load_data(path: Path) -> pd.DataFrame:
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
     if "Unnamed: 0" in df.columns:
         df = df.drop(columns=["Unnamed: 0"])
-    if "source" not in df.columns:
-        df["source"] = "ALL"
+    if "Source" not in df.columns:
+        df["Source"] = "ALL"
     for col in ["systemload","prediction","low_delta","up_delta"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     if "zoning" in df.columns:
         df["zoning"] = df["zoning"].astype(str).str.upper().str.strip()
-    if "source" in df.columns:
-        df["source"] = df["source"].astype(str).str.upper().str.strip()
+    if "Source" in df.columns:
+        df["Source"] = df["Source"].astype(str).str.upper().str.strip()
     return df
 
 def _order_sources(sources: list[str]) -> list[str]:
@@ -71,9 +71,9 @@ def build_facets(df: pd.DataFrame,
 
     # Immer kodierte X-Achse –1…+1
     x_col   = "systemload"
-    x_title = "Coded source parameter"
+    x_title = "Coded Source parameter"
 
-    sub = df[df["zoning"].isin(zones) & df["source"].isin(sources)].copy()
+    sub = df[df["zoning"].isin(zones) & df["Source"].isin(sources)].copy()
     has_delta = {"low_delta", "up_delta"}.issubset(sub.columns)
 
     # Globaler y-Bereich?
@@ -104,7 +104,7 @@ def build_facets(df: pd.DataFrame,
         d_z = sub[sub["zoning"] == z]
 
         for src in sources_ordered:
-            d = d_z[d_z["source"] == src].sort_values(x_col)
+            d = d_z[d_z["Source"] == src].sort_values(x_col)
             if d.empty:
                 continue
 
@@ -172,7 +172,7 @@ def main():
         format_func=lambda z: ZONE_MAP.get(z, z),
     )
 
-    sources_in_data = df["source"].dropna().unique().tolist()
+    sources_in_data = df["Source"].dropna().unique().tolist()
     source_options = _order_sources(sources_in_data)
     sources = st.sidebar.multiselect(
         "Source", options=source_options, default=source_options,

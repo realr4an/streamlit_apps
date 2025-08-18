@@ -27,9 +27,7 @@ SOURCE_MAP = {
 # ----------------------- Datei finden -----------------------
 def _find_data_file() -> Path:
     patterns = [
-        "data.throughput.2d*.xlsx",
-        "data.mopt.2d*.xlsx",
-        "data.throughput.2d_10_30 3.xlsx",
+        "data.throughput.2d_10_30 4.xlsx",
     ]
     for pat in patterns:
         cands = sorted(BASE_DIR.glob(pat))
@@ -61,8 +59,8 @@ def load_data(path: Path) -> pd.DataFrame:
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
 
-    if "source" not in df.columns:
-        df["source"] = "ALL"
+    if "Source" not in df.columns:
+        df["Source"] = "ALL"
 
     for c in ["systemload", "prediction"]:
         if c in df.columns:
@@ -70,8 +68,8 @@ def load_data(path: Path) -> pd.DataFrame:
 
     if "zoning" in df.columns:
         df["zoning"] = df["zoning"].astype(str).str.upper().str.strip()
-    if "source" in df.columns:
-        df["source"] = df["source"].astype(str).str.upper().str.strip()
+    if "Source" in df.columns:
+        df["Source"] = df["Source"].astype(str).str.upper().str.strip()
     return df
 
 # ----------------------- Plot bauen -------------------------
@@ -84,7 +82,7 @@ def build_single_plot(df: pd.DataFrame, zone: str, sources, colors: dict, line_w
 
     fig = go.Figure()
     for src in order:
-        s = d[d["source"] == src].sort_values(xcol)
+        s = d[d["Source"] == src].sort_values(xcol)
         if s.empty:
             continue
         fig.add_trace(
@@ -136,7 +134,7 @@ def main():
         format_func=lambda z: ZONE_MAP.get(z, z),
     )
 
-    sources_all = sorted(df["source"].dropna().unique().tolist())
+    sources_all = sorted(df["Source"].dropna().unique().tolist())
     default_sources = [s for s in ["TA", "NO", "EX"] if s in sources_all] or sources_all
     sources = st.multiselect(
         "Source",
