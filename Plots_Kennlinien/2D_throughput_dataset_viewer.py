@@ -171,11 +171,12 @@ def build_facets(df: pd.DataFrame,
             go.Scatter(
                 x=[0], y=[fixed_y_range[0]], mode="markers",
                 marker=dict(symbol="circle", size=6, color="#FFFFFF", line=dict(width=0.6, color="#000000")),
-                name="Observed mopt",
+                name="Observed mean order processing time",
                 legendgroup="obs_mopt",
                 showlegend=True,
                 hoverinfo="skip",
                 visible="legendonly",
+                legendrank=50,
             ),
             row=1, col=1
         )
@@ -210,7 +211,7 @@ def build_facets(df: pd.DataFrame,
                     go.Scatter(x=d[x_col], y=d["prediction"], mode="lines",
                                line=dict(color=colors.get(src, "#444444"), width=2),
                                name=SOURCE_MAP.get(src, src),
-                               legendgroup=src, showlegend=(idx == 0)),
+                               legendgroup=src, showlegend=(idx == 0), legendrank=10 + sources_ordered.index(src)),
                     row=r, col=c
                 )
 
@@ -249,17 +250,23 @@ def build_facets(df: pd.DataFrame,
         )
 
     fig.update_layout(
-        height=720, width=1200,
-        title={"text": "Mean order processing time — Delta-Prognoseintervalle", "font": {"size": font_size+4}},
-        font=dict(size=font_size),
+        height=800, width=1000,  # etwas breiter für rechts platzierte Legende
+        title={"text": "Mean order processing time — Delta-Prognoseintervalle", "font": {"size": font_size+4, "color": "#000000"}},
+        font=dict(size=font_size, color="#000000"),
         margin=dict(l=10, r=10, t=60, b=10),
-        legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.08, font=dict(size=font_size-2))
+        legend=dict(
+            orientation="v",
+            x=1.02, xanchor="left", y=1, yanchor="top",
+            font=dict(size=font_size-2, color="#000000"),
+            bgcolor="rgba(255,255,255,0.6)",
+            bordercolor="#CCCCCC", borderwidth=1
+        )
     )
     # Subplot-Titel vergrößern
     if hasattr(fig.layout, 'annotations'):
         for ann in fig.layout.annotations:
             if ann.text in titles:
-                ann.font = dict(size=font_size, color=ann.font.color if ann.font and ann.font.color else None)
+                ann.font = dict(size=font_size, color="#000000")
     return fig
 
 def main():
@@ -296,7 +303,7 @@ def main():
     ribbon_alpha = st.sidebar.slider("Ribbon-Transparenz", 0.05, 0.9, 0.18, 0.01)
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
     show_obs_points = st.sidebar.checkbox("Beobachtete mopt-Punkte anzeigen", True)
-    font_size = st.sidebar.slider("Grund-Schriftgröße", 10, 30, 18, 1)
+    font_size = st.sidebar.slider("Grund-Schriftgröße", 10, 40, 20, 1)
 
     if zones and sources:
         fig = build_facets(
@@ -305,7 +312,7 @@ def main():
         )
         # WICHTIG: key abhängig vom Puffer (und y_lock/y_zero), damit Streamlit neu zeichnet
         st.plotly_chart(
-            fig, use_container_width=True,
+            fig, use_container_width=False,
             key=f"facets-{y_lock}-{y_zero}-{y_top_pad}"
         )
         if not {"low_delta","up_delta"}.issubset(df.columns):
