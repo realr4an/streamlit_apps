@@ -223,7 +223,8 @@ def build_facets(df: pd.DataFrame,
             title_text=x_title, range=[-1, 1], autorange=False,
             tickmode="array", tickvals=[-1, -0.5, 0, 0.5, 1],
             zeroline=False, row=r, col=c,
-            title_font=dict(size=font_size), tickfont=dict(size=font_size-2)
+            title_font=dict(size=font_size, color="#000000"),
+            tickfont=dict(size=font_size-2, color="#000000")
         )
 
         # Y-Achse: fest 100–225 mit 25er Schritten
@@ -232,7 +233,8 @@ def build_facets(df: pd.DataFrame,
             range=fixed_y_range, autorange=False,
             tickmode="array", tickvals=fixed_y_ticks,
             row=r, col=c,
-            title_font=dict(size=font_size), tickfont=dict(size=font_size-2)
+            title_font=dict(size=font_size, color="#000000"),
+            tickfont=dict(size=font_size-2, color="#000000")
         )
 
     # Observed Mopt Legendeneintrag zuletzt einfügen (hoher legendrank)
@@ -241,7 +243,7 @@ def build_facets(df: pd.DataFrame,
             go.Scatter(
                 x=[0], y=[fixed_y_range[0]], mode="markers",
                 marker=dict(symbol="circle", size=7, color="#FFFFFF", line=dict(width=0.7, color="#000000")),
-                name="Observed Mopt",
+                name="Observed mean order processing time",
                 legendgroup="obs_mopt",
                 showlegend=True,
                 hoverinfo="skip",
@@ -252,7 +254,7 @@ def build_facets(df: pd.DataFrame,
         )
 
     fig.update_layout(
-        height=800, width=980,  # etwas breiter für rechts platzierte Legende
+        height=800, width=1000,  # etwas breiter für rechts platzierte Legende
         title={"text": "Mean order processing time — Delta-Prognoseintervalle", "font": {"size": font_size+4, "color": "#000000"}},
         font=dict(size=font_size, color="#000000"),
         margin=dict(l=10, r=10, t=60, b=10),
