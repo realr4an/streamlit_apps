@@ -197,19 +197,42 @@ def build_single_plot(
             legendgroup=src
         ))
 
-    # --- Beobachtete Punkte (throughput & mopt) ---
+    # --- Beobachtete Punkte (throughput) ---
     if not obs.empty:
+        # Farbige Punkte je Source (ohne eigene Legendeneinträge)
         for src in order:
-            o = obs[obs["source"] == src].sort_values("systemload")
-            if o.empty:
+            src_pts = obs[obs["source"] == src]
+            if src_pts.empty or src_pts["throughput"].isna().all():
                 continue
-            if "throughput" in o.columns and not o["throughput"].isna().all():
-                fig.add_trace(go.Scatter(
-                    x=o["systemload"], y=o["throughput"], mode="markers",
-                    marker=dict(symbol="circle", size=7, color=colors.get(src, "#666"), line=dict(width=0.5, color="#222")),
-                    name=f"{SOURCE_MAP.get(src, src)} observed throughput",
-                    legendgroup=f"obs_{src}", showlegend=True
-                ))
+            fig.add_trace(
+                go.Scatter(
+                    x=src_pts["systemload"],
+                    y=src_pts["throughput"],
+                    mode="markers",
+                    marker=dict(
+                        symbol="circle",
+                        size=7,
+                        color=colors.get(src, "#666"),
+                        line=dict(width=0.5, color="#222"),
+                    ),
+                    name="Observed throughput (colored)",  # Platzhalter, nicht in Legende
+                    legendgroup="obs",
+                    showlegend=False,
+                    hovertemplate="Observed throughput<br>Systemload: %{x}<br>Throughput: %{y}<extra></extra>",
+                )
+            )
+        # Ein einzelner weißer Legendeneintrag (nur in Legende sichtbar)
+        fig.add_trace(
+            go.Scatter(
+                x=[0], y=[0], mode="markers",
+                marker=dict(symbol="circle", size=7, color="#FFFFFF", line=dict(width=0.6, color="#000000")),
+                name="Observed throughput",
+                legendgroup="obs",
+                showlegend=True,
+                visible="legendonly",
+                hoverinfo="skip",
+            )
+        )
 
     fig.update_layout(
         height=700, width=700,
