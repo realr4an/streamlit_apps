@@ -133,7 +133,8 @@ def build_facets(df: pd.DataFrame,
                  colors: dict[str, str],
                  ribbon_alpha: float,
                  observed: pd.DataFrame | None = None,
-                 show_obs_points: bool = False) -> go.Figure:
+                 show_obs_points: bool = False,
+                 font_size: int = 18) -> go.Figure:
 
     # Immer kodierte X-Achse –1…+1
     x_col   = "systemload"
@@ -234,7 +235,8 @@ def build_facets(df: pd.DataFrame,
         fig.update_xaxes(
             title_text=x_title, range=[-1, 1], autorange=False,
             tickmode="array", tickvals=[-1, -0.5, 0, 0.5, 1],
-            zeroline=False, row=r, col=c
+            zeroline=False, row=r, col=c,
+            title_font=dict(size=font_size), tickfont=dict(size=font_size-2)
         )
 
         # Y-Achse: fest 100–225 mit 25er Schritten
@@ -242,15 +244,22 @@ def build_facets(df: pd.DataFrame,
             title_text="Mean order processing time",
             range=fixed_y_range, autorange=False,
             tickmode="array", tickvals=fixed_y_ticks,
-            row=r, col=c
+            row=r, col=c,
+            title_font=dict(size=font_size), tickfont=dict(size=font_size-2)
         )
 
     fig.update_layout(
         height=720, width=1200,
-        title="Mean order processing time — Delta-Prognoseintervalle",
+        title={"text": "Mean order processing time — Delta-Prognoseintervalle", "font": {"size": font_size+4}},
+        font=dict(size=font_size),
         margin=dict(l=10, r=10, t=60, b=10),
-        legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.05)
+        legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.08, font=dict(size=font_size-2))
     )
+    # Subplot-Titel vergrößern
+    if hasattr(fig.layout, 'annotations'):
+        for ann in fig.layout.annotations:
+            if ann.text in titles:
+                ann.font = dict(size=font_size, color=ann.font.color if ann.font and ann.font.color else None)
     return fig
 
 def main():
@@ -287,10 +296,13 @@ def main():
     ribbon_alpha = st.sidebar.slider("Ribbon-Transparenz", 0.05, 0.9, 0.18, 0.01)
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
     show_obs_points = st.sidebar.checkbox("Beobachtete mopt-Punkte anzeigen", True)
+    font_size = st.sidebar.slider("Grund-Schriftgröße", 10, 30, 18, 1)
 
     if zones and sources:
-        fig = build_facets(df, zones, sources, y_lock, y_zero, y_top_pad, colors, ribbon_alpha,
-                           observed=observed_df, show_obs_points=show_obs_points)
+        fig = build_facets(
+            df, zones, sources, y_lock, y_zero, y_top_pad, colors, ribbon_alpha,
+            observed=observed_df, show_obs_points=show_obs_points, font_size=font_size
+        )
         # WICHTIG: key abhängig vom Puffer (und y_lock/y_zero), damit Streamlit neu zeichnet
         st.plotly_chart(
             fig, use_container_width=True,
