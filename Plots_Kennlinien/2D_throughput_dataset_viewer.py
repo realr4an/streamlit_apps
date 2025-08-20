@@ -16,7 +16,7 @@ SOURCE_MAP = {"TA": "Tacted","NO": "Normal","EX": "Exponential"}
 SOURCE_ORDER = ["TA","NO","EX"]
 
 def _find_data_file() -> Path:
-    cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30 2.xlsx"))
+    cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30 4.xlsx"))
     if not cands:
         raise FileNotFoundError("Keine Datei data.mopt.2d*.xlsx im Skriptordner gefunden.")
     return cands[0]

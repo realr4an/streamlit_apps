@@ -31,9 +31,7 @@ ZONING_NORMALIZE = {
 # ----------------------- Datei finden -----------------------
 def _find_data_file() -> Path:
     patterns = [
-        "data.throughput.2d_10_30 4.xlsx",  # dein File
-        "data.throughput.2d*.xlsx",
-        "data.mopt.2d*.xlsx",
+        "data.throughput.2d_10_30 6.xlsx"
     ]
     for pat in patterns:
         cands = sorted(BASE_DIR.glob(pat))
