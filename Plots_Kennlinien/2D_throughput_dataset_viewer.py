@@ -160,26 +160,12 @@ def build_facets(df: pd.DataFrame,
     titles = [ZONE_MAP.get(z, z) for z in zones]
     while len(titles) < 4:
         titles.append("")
-    fig = make_subplots(rows=2, cols=2, subplot_titles=titles)
+    fig = make_subplots(rows=2, cols=2, subplot_titles=titles, horizontal_spacing=0.2)
     cells = [(1,1),(1,2),(2,1),(2,2)]
 
     sources_ordered = _order_sources(sources)
 
-    # Ein einzelner weißer Legendeneintrag für alle beobachteten mopt-Punkte
-    if show_obs_points and not obs_sub.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=[0], y=[fixed_y_range[0]], mode="markers",
-                marker=dict(symbol="circle", size=6, color="#FFFFFF", line=dict(width=0.6, color="#000000")),
-                name="Observed mean order processing time",
-                legendgroup="obs_mopt",
-                showlegend=True,
-                hoverinfo="skip",
-                visible="legendonly",
-                legendrank=50,
-            ),
-            row=1, col=1
-        )
+    # Placeholder für Observed Mopt wird nach allen Linien (am Ende) hinzugefügt, damit er in der Legende zuletzt steht
 
     for idx, z in enumerate(zones):
         r, c = cells[idx]
@@ -249,8 +235,24 @@ def build_facets(df: pd.DataFrame,
             title_font=dict(size=font_size), tickfont=dict(size=font_size-2)
         )
 
+    # Observed Mopt Legendeneintrag zuletzt einfügen (hoher legendrank)
+    if show_obs_points and not obs_sub.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=[0], y=[fixed_y_range[0]], mode="markers",
+                marker=dict(symbol="circle", size=7, color="#FFFFFF", line=dict(width=0.7, color="#000000")),
+                name="Observed Mopt",
+                legendgroup="obs_mopt",
+                showlegend=True,
+                hoverinfo="skip",
+                visible="legendonly",
+                legendrank=100
+            ),
+            row=1, col=1
+        )
+
     fig.update_layout(
-        height=800, width=1000,  # etwas breiter für rechts platzierte Legende
+        height=800, width=980,  # etwas breiter für rechts platzierte Legende
         title={"text": "Mean order processing time — Delta-Prognoseintervalle", "font": {"size": font_size+4, "color": "#000000"}},
         font=dict(size=font_size, color="#000000"),
         margin=dict(l=10, r=10, t=60, b=10),
