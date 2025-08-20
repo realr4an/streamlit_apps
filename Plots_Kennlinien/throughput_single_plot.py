@@ -216,10 +216,10 @@ def build_single_plot(
                         color=colors.get(src, "#666"),
                         line=dict(width=0.5, color="#222"),
                     ),
-                    name="Observed throughput (colored)",  # Platzhalter, nicht in Legende
+                    name="Observation (colored)",  # Platzhalter, nicht in Legende
                     legendgroup="obs",
                     showlegend=False,
-                    hovertemplate="Observed throughput<br>Systemload: %{x}<br>Throughput: %{y}<extra></extra>",
+                    hovertemplate="Observation<br>Systemload: %{x}<br>Throughput: %{y}<extra></extra>",
                 )
             )
         # Ein einzelner weißer Legendeneintrag (nur in Legende sichtbar)
@@ -227,7 +227,7 @@ def build_single_plot(
             go.Scatter(
                 x=[0], y=[0], mode="markers",
                 marker=dict(symbol="circle", size=7, color="#FFFFFF", line=dict(width=0.6, color="#000000")),
-                name="Observed throughput",
+                name="Observation",
                 legendgroup="obs",
                 showlegend=True,
                 visible="legendonly",
