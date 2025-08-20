@@ -243,7 +243,7 @@ def build_facets(df: pd.DataFrame,
             go.Scatter(
                 x=[0], y=[fixed_y_range[0]], mode="markers",
                 marker=dict(symbol="circle", size=7, color="#FFFFFF", line=dict(width=0.7, color="#000000")),
-                name="Observed mean order processing time",
+                name="Observation",
                 legendgroup="obs_mopt",
                 showlegend=True,
                 hoverinfo="skip",
