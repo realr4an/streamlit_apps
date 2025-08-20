@@ -164,6 +164,21 @@ def build_facets(df: pd.DataFrame,
 
     sources_ordered = _order_sources(sources)
 
+    # Ein einzelner weißer Legendeneintrag für alle beobachteten mopt-Punkte
+    if show_obs_points and not obs_sub.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=[0], y=[fixed_y_range[0]], mode="markers",
+                marker=dict(symbol="circle", size=6, color="#FFFFFF", line=dict(width=0.6, color="#000000")),
+                name="Observed mopt",
+                legendgroup="obs_mopt",
+                showlegend=True,
+                hoverinfo="skip",
+                visible="legendonly",
+            ),
+            row=1, col=1
+        )
+
     for idx, z in enumerate(zones):
         r, c = cells[idx]
         d_z = sub[sub["zoning"] == z]
@@ -198,7 +213,7 @@ def build_facets(df: pd.DataFrame,
                     row=r, col=c
                 )
 
-            # Beobachtete mopt-Punkte
+            # Beobachtete mopt-Punkte (farbig, ohne Legendeneintrag)
             if show_obs_points and not obs_z.empty:
                 o = obs_z[obs_z["Source"] == src].sort_values(x_col)
                 if not o.empty and not o["mopt"].isna().all():
@@ -207,8 +222,10 @@ def build_facets(df: pd.DataFrame,
                             x=o[x_col], y=o["mopt"], mode="markers",
                             marker=dict(symbol="circle", size=6, color=colors.get(src, "#666"),
                                         line=dict(width=0.5, color="#222")),
-                            name=f"{SOURCE_MAP.get(src, src)} observed mopt",
-                            legendgroup=f"obs_{src}", showlegend=(idx == 0)
+                            name="Observed mopt (colored)",
+                            legendgroup="obs_mopt",
+                            showlegend=False,
+                            hovertemplate="Observed mopt<br>Systemload: %{x}<br>mopt: %{y}<extra></extra>",
                         ),
                         row=r, col=c
                     )
