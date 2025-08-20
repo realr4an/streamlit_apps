@@ -210,13 +210,6 @@ def build_single_plot(
                     name=f"{SOURCE_MAP.get(src, src)} observed throughput",
                     legendgroup=f"obs_{src}", showlegend=True
                 ))
-            if "mopt" in o.columns and not o["mopt"].isna().all():
-                fig.add_trace(go.Scatter(
-                    x=o["systemload"], y=o["mopt"], mode="markers",
-                    marker=dict(symbol="triangle-up", size=8, color=colors.get(src, "#666"), line=dict(width=0.5, color="#222")),
-                    name=f"{SOURCE_MAP.get(src, src)} observed mopt",
-                    legendgroup=f"obs_{src}", showlegend=True
-                ))
 
     fig.update_layout(
         height=700, width=700,
@@ -267,7 +260,7 @@ def main():
 
     line_width = st.slider("Linienbreite", 1, 6, 3, 1)
     y_zero = st.checkbox("Y-Achse bei 0 beginnen lassen", value=False)
-    show_observed = st.checkbox("Beobachtete throughput & mopt anzeigen", value=True)
+    show_observed = st.checkbox("Beobachtete throughput anzeigen", value=True)
 
     st.markdown("**Farben**")
     col1, col2, col3 = st.columns(3)

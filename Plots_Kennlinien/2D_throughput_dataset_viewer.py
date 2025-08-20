@@ -14,6 +14,8 @@ BASE_DIR = Path(__file__).resolve().parent
 ZONE_MAP = {"BU": "Bottom-up","TD": "Top-down","RA": "Random","SQ": "Shortest queue"}
 SOURCE_MAP = {"TA": "Tacted","NO": "Normal","EX": "Exponential"}
 SOURCE_ORDER = ["TA","NO","EX"]
+# Datei mit beobachteten Rohwerten (mopt)
+OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 
 def _find_data_file() -> Path:
     cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30 4.xlsx"))
@@ -57,6 +59,58 @@ def load_data(path: Path) -> pd.DataFrame:
         df["Source"] = df["Source"].astype(str).str.upper().str.strip()
     return df
 
+@st.cache_data
+def load_observed(path: Path) -> pd.DataFrame:
+    """Beobachtete Rohdaten (mopt) laden und harmonisieren.
+    Fix: Mehrfach vorkommende Spaltennamen (z.B. distributionstrategy + distributinstrategy → zoning)
+    werden zu einer Spalte zusammengeführt (pro Zeile erster nicht-NA Wert).
+    """
+    import warnings
+    if not path.exists():
+        return pd.DataFrame()
+    warnings.filterwarnings("ignore", message="Workbook contains no default style",
+                            category=UserWarning, module="openpyxl")
+    df = pd.read_excel(path)
+    rename_map = {
+        "coded_sourceparameter": "systemload",
+        "distributionstrategy": "zoning",
+        "distributinstrategy": "zoning",  # Tippfehler-Variante
+    }
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+    def _collapse(frame: pd.DataFrame, col: str) -> pd.DataFrame:
+        if list(frame.columns).count(col) > 1:
+            cols = frame.loc[:, frame.columns == col]
+            merged = cols.bfill(axis=1).iloc[:, 0]
+            frame = frame.loc[:, frame.columns != col]
+            frame[col] = merged
+        return frame
+
+    for c in ["zoning", "systemload", "Source"]:
+        df = _collapse(df, c)
+
+    # Fallback: falls nur 'source' existiert → in 'Source' überführen
+    if "Source" not in df.columns and "source" in df.columns:
+        df = _collapse(df, "source")
+        df.rename(columns={"source": "Source"}, inplace=True)
+
+    for c in ["systemload", "mopt"]:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    if "zoning" in df.columns:
+        z = df["zoning"]
+        if isinstance(z, pd.DataFrame):
+            z = z.iloc[:, 0]
+        df["zoning"] = z.astype(str).str.upper().str.strip()
+    if "Source" in df.columns:
+        s = df["Source"]
+        if isinstance(s, pd.DataFrame):
+            s = s.iloc[:, 0]
+        df["Source"] = s.astype(str).str.upper().str.strip()
+
+    return df
+
 def _order_sources(sources: list[str]) -> list[str]:
     in_data_ordered = [s for s in SOURCE_ORDER if s in sources]
     leftovers = [s for s in sources if s not in SOURCE_ORDER]
@@ -77,7 +131,9 @@ def build_facets(df: pd.DataFrame,
                  y_zero: bool,
                  y_top_pad: float,
                  colors: dict[str, str],
-                 ribbon_alpha: float) -> go.Figure:
+                 ribbon_alpha: float,
+                 observed: pd.DataFrame | None = None,
+                 show_obs_points: bool = False) -> go.Figure:
 
     # Immer kodierte X-Achse –1…+1
     x_col   = "systemload"
@@ -86,11 +142,16 @@ def build_facets(df: pd.DataFrame,
     sub = df[df["zoning"].isin(zones) & df["Source"].isin(sources)].copy()
     has_delta = {"low_delta", "up_delta"}.issubset(sub.columns)
 
+    # Beobachtungen subsetten
+    obs_sub = pd.DataFrame()
+    if show_obs_points and observed is not None and not observed.empty:
+        needed_cols = {"zoning", "Source", x_col, "mopt"}
+        if needed_cols.issubset(set(observed.columns)):
+            obs_sub = observed[(observed["zoning"].isin(zones)) & (observed["Source"].isin(sources))].copy()
+
     # Fester y-Bereich laut Anforderung: 100 bis 225, Ticks alle 25
     fixed_y_range = [100, 225]
     fixed_y_ticks = list(range(100, 226, 25))
-
-    # (Vorheriger dynamischer Bereich entfällt, y_lock / y_zero / y_top_pad wirken hier nicht mehr auf die Skala)
 
     order = ["BU","TD","RA","SQ"]
     zones = [z for z in order if z in zones]
@@ -106,13 +167,14 @@ def build_facets(df: pd.DataFrame,
     for idx, z in enumerate(zones):
         r, c = cells[idx]
         d_z = sub[sub["zoning"] == z]
+        obs_z = obs_sub[obs_sub["zoning"] == z] if not obs_sub.empty else pd.DataFrame()
 
         for src in sources_ordered:
             d = d_z[d_z["Source"] == src].sort_values(x_col)
-            if d.empty:
+            if d.empty and (obs_z.empty or obs_z[obs_z["Source"] == src].empty):
                 continue
 
-            if has_delta:
+            if not d.empty and has_delta:
                 fig.add_trace(
                     go.Scatter(x=d[x_col], y=d["low_delta"], mode="lines",
                                line=dict(width=0), hoverinfo="skip",
@@ -127,13 +189,29 @@ def build_facets(df: pd.DataFrame,
                     row=r, col=c
                 )
 
-            fig.add_trace(
-                go.Scatter(x=d[x_col], y=d["prediction"], mode="lines",
-                           line=dict(color=colors.get(src, "#444444"), width=2),
-                           name=SOURCE_MAP.get(src, src),
-                           legendgroup=src, showlegend=(idx == 0)),
-                row=r, col=c
-            )
+            if not d.empty:
+                fig.add_trace(
+                    go.Scatter(x=d[x_col], y=d["prediction"], mode="lines",
+                               line=dict(color=colors.get(src, "#444444"), width=2),
+                               name=SOURCE_MAP.get(src, src),
+                               legendgroup=src, showlegend=(idx == 0)),
+                    row=r, col=c
+                )
+
+            # Beobachtete mopt-Punkte
+            if show_obs_points and not obs_z.empty:
+                o = obs_z[obs_z["Source"] == src].sort_values(x_col)
+                if not o.empty and not o["mopt"].isna().all():
+                    fig.add_trace(
+                        go.Scatter(
+                            x=o[x_col], y=o["mopt"], mode="markers",
+                            marker=dict(symbol="circle", size=6, color=colors.get(src, "#666"),
+                                        line=dict(width=0.5, color="#222")),
+                            name=f"{SOURCE_MAP.get(src, src)} observed mopt",
+                            legendgroup=f"obs_{src}", showlegend=(idx == 0)
+                        ),
+                        row=r, col=c
+                    )
 
         # X-Achse fix –1…+1
         fig.update_xaxes(
@@ -164,6 +242,7 @@ def main():
 
     path = _find_data_file()
     df = load_data(path)
+    observed_df = load_observed(OBS_DATA_FILE)
 
     st.sidebar.header("Anzeige")
     zone_options = ["BU","TD","RA","SQ"]
@@ -190,9 +269,11 @@ def main():
     col_ex = st.sidebar.color_picker("Exponential", "#009E73")
     ribbon_alpha = st.sidebar.slider("Ribbon-Transparenz", 0.05, 0.9, 0.18, 0.01)
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
+    show_obs_points = st.sidebar.checkbox("Beobachtete mopt-Punkte anzeigen", True)
 
     if zones and sources:
-        fig = build_facets(df, zones, sources, y_lock, y_zero, y_top_pad, colors, ribbon_alpha)
+        fig = build_facets(df, zones, sources, y_lock, y_zero, y_top_pad, colors, ribbon_alpha,
+                           observed=observed_df, show_obs_points=show_obs_points)
         # WICHTIG: key abhängig vom Puffer (und y_lock/y_zero), damit Streamlit neu zeichnet
         st.plotly_chart(
             fig, use_container_width=True,
