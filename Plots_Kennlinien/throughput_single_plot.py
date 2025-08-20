@@ -151,6 +151,7 @@ def build_single_plot(
     ribbon_alpha: float = 0.18,
     observed: pd.DataFrame | None = None,
     show_observed: bool = True,
+    font_size: int = 18,
 ) -> go.Figure:
     xcol = "systemload"  # kodiert –1…+1
     xtitle = "Coded source parameter"
@@ -237,12 +238,18 @@ def build_single_plot(
     fig.update_layout(
         height=700, width=700,
         margin=dict(l=40, r=20, t=20, b=40),
-        legend=dict(title="Source"),
+        legend=dict(
+            title=dict(text="Source", font=dict(size=font_size-2, color="#000000")),
+            font=dict(size=font_size-2, color="#000000")
+        ),
+        font=dict(size=font_size, color="#000000")
     )
     fig.update_xaxes(
         title_text=xtitle, range=[-1, 1],
         tickmode="array", tickvals=[-1, -0.5, 0, 0.5, 1],
-        zeroline=False
+        zeroline=False,
+        title_font=dict(size=font_size, color="#000000"),
+        tickfont=dict(size=font_size-2, color="#000000")
     )
     # Fixe Y-Achse 0–15000, volle Zahlen ohne k-Abkürzung
     fig.update_yaxes(
@@ -250,7 +257,9 @@ def build_single_plot(
         range=[0, 15000], autorange=False,
         tickformat=".0f",  # keine wissenschaftl. Notation, keine k-Suffixe
         showexponent="none",
-        zeroline=False
+        zeroline=False,
+        title_font=dict(size=font_size, color="#000000"),
+        tickfont=dict(size=font_size-2, color="#000000")
     )
     return fig
 
@@ -284,6 +293,7 @@ def main():
     line_width = st.slider("Linienbreite", 1, 6, 3, 1)
     y_zero = st.checkbox("Y-Achse bei 0 beginnen lassen", value=False)
     show_observed = st.checkbox("Beobachtete throughput anzeigen", value=True)
+    font_size = st.slider("Grund-Schriftgröße", 10, 40, 20, 1)
 
     st.markdown("**Farben**")
     col1, col2, col3 = st.columns(3)
@@ -293,8 +303,10 @@ def main():
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
 
     if zone and sources:
-        fig = build_single_plot(df, zone, sources, colors, line_width, y_zero, ribbon_alpha=0.18,
-                                observed=observed_df, show_observed=show_observed)
+        fig = build_single_plot(
+            df, zone, sources, colors, line_width, y_zero, ribbon_alpha=0.18,
+            observed=observed_df, show_observed=show_observed, font_size=font_size
+        )
         st.plotly_chart(fig, use_container_width=False)
         st.caption(f"Zoning: {ZONE_MAP.get(zone, zone)}")
         if not {"low_delta","up_delta"}.issubset(df.columns):
