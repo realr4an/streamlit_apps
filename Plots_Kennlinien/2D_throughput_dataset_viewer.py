@@ -258,10 +258,11 @@ def build_facets(df: pd.DataFrame,
         margin=dict(l=10, r=10, t=60, b=10),
         legend=dict(
             orientation="v",
+            title=dict(text="Source", font=dict(size=font_size-2, color="#000000")),
             x=1.02, xanchor="left", y=1, yanchor="top",
             font=dict(size=font_size-2, color="#000000"),
-            bgcolor="rgba(255,255,255,0.6)",
-            bordercolor="#CCCCCC", borderwidth=1
+            bgcolor="rgba(255,255,255,0.0)",
+            borderwidth=0
         )
     )
     # Subplot-Titel vergrößern
