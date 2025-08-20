@@ -10,6 +10,8 @@ import streamlit as st
 import plotly.graph_objects as go
 
 BASE_DIR = Path(__file__).resolve().parent
+# Pfad zur Beobachtungsdatei
+OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 
 # ----------------------- Mappings ---------------------------
 ZONE_MAP = {
@@ -88,6 +90,51 @@ def load_data(path: Path) -> pd.DataFrame:
 
     return df
 
+@st.cache_data
+def load_observed(path: Path) -> pd.DataFrame:
+    """Rohdatensatz mit beobachteten throughput & mopt laden.
+    Behebt auch doppelte Spalten nach dem Rename (z.B. distributionstrategy + distributinstrategy → zoning).
+    """
+    if not path.exists():
+        raise FileNotFoundError(str(path))
+    df = pd.read_excel(path)
+    rename_map = {
+        "coded_sourceparameter": "systemload",
+        "distributionstrategy": "zoning",
+        "distributinstrategy": "zoning",  # Schreibvariante laut Angabe
+    }
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+    def _collapse_duplicates(frame: pd.DataFrame, col_name: str) -> pd.DataFrame:
+        if list(frame.columns).count(col_name) > 1:
+            dups = frame.loc[:, frame.columns == col_name]
+            # Nimm je Zeile den ersten nicht‑NA Wert
+            merged = dups.bfill(axis=1).iloc[:, 0]
+            # Entferne alle Duplikat-Spalten
+            frame = frame.loc[:, frame.columns != col_name]
+            frame[col_name] = merged
+        return frame
+
+    for cn in ["zoning", "systemload", "source"]:
+        df = _collapse_duplicates(df, cn)
+
+    for c in ["systemload", "throughput", "mopt"]:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    if "zoning" in df.columns:
+        zoning_col = df["zoning"]
+        if isinstance(zoning_col, pd.DataFrame):  # Fallback (sollte nach Collapse nicht mehr passieren)
+            zoning_col = zoning_col.iloc[:, 0]
+        z = zoning_col.astype(str).str.upper().str.strip()
+        df["zoning"] = z.replace(ZONING_NORMALIZE)
+    if "source" in df.columns:
+        source_col = df["source"]
+        if isinstance(source_col, pd.DataFrame):
+            source_col = source_col.iloc[:, 0]
+        df["source"] = source_col.astype(str).str.upper().str.strip()
+    return df
+
 def _rgba(hex_color: str, alpha: float) -> str:
     hex_color = hex_color.lstrip("#")
     r, g, b = (int(hex_color[i:i+2], 16) for i in (0, 2, 4))
@@ -101,7 +148,9 @@ def build_single_plot(
     colors: dict,
     line_width: int,
     y_zero: bool,
-    ribbon_alpha: float = 0.18
+    ribbon_alpha: float = 0.18,
+    observed: pd.DataFrame | None = None,
+    show_observed: bool = True,
 ) -> go.Figure:
     xcol = "systemload"  # kodiert –1…+1
     xtitle = "Coded source parameter"
@@ -114,7 +163,13 @@ def build_single_plot(
 
     has_delta = {"low_delta", "up_delta"}.issubset(df.columns)
 
+    # Beobachtungen für dieselbe Zone / Sources
+    obs = pd.DataFrame()
+    if show_observed and observed is not None and not observed.empty:
+        obs = observed[(observed["zoning"] == zone) & (observed["source"].isin(sources))].copy()
+
     fig = go.Figure()
+    # --- Vorhersage-Linien + Intervalle ---
     for src in order:
         s = d[d["source"] == src].sort_values(xcol)
         if s.empty:
@@ -142,6 +197,27 @@ def build_single_plot(
             legendgroup=src
         ))
 
+    # --- Beobachtete Punkte (throughput & mopt) ---
+    if not obs.empty:
+        for src in order:
+            o = obs[obs["source"] == src].sort_values("systemload")
+            if o.empty:
+                continue
+            if "throughput" in o.columns and not o["throughput"].isna().all():
+                fig.add_trace(go.Scatter(
+                    x=o["systemload"], y=o["throughput"], mode="markers",
+                    marker=dict(symbol="circle", size=7, color=colors.get(src, "#666"), line=dict(width=0.5, color="#222")),
+                    name=f"{SOURCE_MAP.get(src, src)} observed throughput",
+                    legendgroup=f"obs_{src}", showlegend=True
+                ))
+            if "mopt" in o.columns and not o["mopt"].isna().all():
+                fig.add_trace(go.Scatter(
+                    x=o["systemload"], y=o["mopt"], mode="markers",
+                    marker=dict(symbol="triangle-up", size=8, color=colors.get(src, "#666"), line=dict(width=0.5, color="#222")),
+                    name=f"{SOURCE_MAP.get(src, src)} observed mopt",
+                    legendgroup=f"obs_{src}", showlegend=True
+                ))
+
     fig.update_layout(
         height=700, width=700,
         margin=dict(l=40, r=20, t=20, b=40),
@@ -152,9 +228,12 @@ def build_single_plot(
         tickmode="array", tickvals=[-1, -0.5, 0, 0.5, 1],
         zeroline=False
     )
+    # Fixe Y-Achse 0–15000, volle Zahlen ohne k-Abkürzung
     fig.update_yaxes(
         title_text="Throughput",
-        rangemode=("tozero" if y_zero else None),
+        range=[0, 15000], autorange=False,
+        tickformat=".0f",  # keine wissenschaftl. Notation, keine k-Suffixe
+        showexponent="none",
         zeroline=False
     )
     return fig
@@ -166,6 +245,11 @@ def main():
 
     path = _find_data_file()
     df = load_data(path)
+    try:
+        observed_df = load_observed(OBS_DATA_FILE)
+    except FileNotFoundError:
+        observed_df = pd.DataFrame()
+        st.warning("Beobachtungsdatei 'data.xlsx' nicht gefunden – keine Punkte geplottet.")
 
     zones_in_data = sorted(df["zoning"].dropna().unique().tolist())
     preferred_order = [z for z in ["BU","TD","RA","SQ"] if z in zones_in_data]
@@ -183,6 +267,7 @@ def main():
 
     line_width = st.slider("Linienbreite", 1, 6, 3, 1)
     y_zero = st.checkbox("Y-Achse bei 0 beginnen lassen", value=False)
+    show_observed = st.checkbox("Beobachtete throughput & mopt anzeigen", value=True)
 
     st.markdown("**Farben**")
     col1, col2, col3 = st.columns(3)
@@ -192,7 +277,8 @@ def main():
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
 
     if zone and sources:
-        fig = build_single_plot(df, zone, sources, colors, line_width, y_zero, ribbon_alpha=0.18)
+        fig = build_single_plot(df, zone, sources, colors, line_width, y_zero, ribbon_alpha=0.18,
+                                observed=observed_df, show_observed=show_observed)
         st.plotly_chart(fig, use_container_width=False)
         st.caption(f"Zoning: {ZONE_MAP.get(zone, zone)}")
         if not {"low_delta","up_delta"}.issubset(df.columns):

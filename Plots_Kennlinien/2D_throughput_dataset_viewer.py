@@ -86,14 +86,11 @@ def build_facets(df: pd.DataFrame,
     sub = df[df["zoning"].isin(zones) & df["Source"].isin(sources)].copy()
     has_delta = {"low_delta", "up_delta"}.issubset(sub.columns)
 
-    # Globaler y-Bereich (mit Puffer)
-    y_range_global = None
-    if y_lock and not sub.empty:
-        base_ymax = _nan_safe_max(sub["up_delta"] if has_delta else sub["prediction"])
-        base_ymin = _nan_safe_min(sub["low_delta"] if has_delta else sub["prediction"])
-        ymin = 0.0 if y_zero else base_ymin
-        ymax = base_ymax + float(y_top_pad)
-        y_range_global = [ymin, ymax]
+    # Fester y-Bereich laut Anforderung: 100 bis 225, Ticks alle 25
+    fixed_y_range = [100, 225]
+    fixed_y_ticks = list(range(100, 226, 25))
+
+    # (Vorheriger dynamischer Bereich entfällt, y_lock / y_zero / y_top_pad wirken hier nicht mehr auf die Skala)
 
     order = ["BU","TD","RA","SQ"]
     zones = [z for z in order if z in zones]
@@ -145,22 +142,13 @@ def build_facets(df: pd.DataFrame,
             zeroline=False, row=r, col=c
         )
 
-        # Y-Achse: globaler Bereich oder panel-spezifisch mit Puffer
-        if y_range_global is not None:
-            fig.update_yaxes(title_text="Mean order processing time",
-                             range=y_range_global, autorange=False, row=r, col=c)
-        else:
-            if y_zero:
-                panel_ymax = _nan_safe_max(d_z["up_delta"] if has_delta else d_z["prediction"])
-                fig.update_yaxes(title_text="Mean order processing time",
-                                 range=[0.0, panel_ymax + float(y_top_pad)],
-                                 autorange=False, row=r, col=c)
-            else:
-                panel_ymin = _nan_safe_min(d_z["low_delta"] if has_delta else d_z["prediction"])
-                panel_ymax = _nan_safe_max(d_z["up_delta"] if has_delta else d_z["prediction"])
-                fig.update_yaxes(title_text="Mean order processing time",
-                                 range=[panel_ymin, panel_ymax + float(y_top_pad)],
-                                 autorange=False, row=r, col=c)
+        # Y-Achse: fest 100–225 mit 25er Schritten
+        fig.update_yaxes(
+            title_text="Mean order processing time",
+            range=fixed_y_range, autorange=False,
+            tickmode="array", tickvals=fixed_y_ticks,
+            row=r, col=c
+        )
 
     fig.update_layout(
         height=720, width=1200,
