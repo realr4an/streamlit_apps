@@ -255,7 +255,8 @@ def build_single_plot(
     fig.update_yaxes(
         title_text="Throughput",
         range=[0, 15000], autorange=False,
-        tickformat=".0f",  # keine wissenschaftl. Notation, keine k-Suffixe
+    tickmode="array", tickvals=list(range(0, 15001, 1500)),
+    tickformat=".0f",  # keine wissenschaftl. Notation, keine k-Suffixe
         showexponent="none",
         zeroline=False,
         title_font=dict(size=font_size, color="#000000"),
