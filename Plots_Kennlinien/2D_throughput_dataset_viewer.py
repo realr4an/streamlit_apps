@@ -138,7 +138,7 @@ def build_facets(df: pd.DataFrame,
 
     # Immer kodierte X-Achse –1…+1
     x_col   = "systemload"
-    x_title = "Coded Source parameter"
+    x_title = "Coded source parameter"  # 'source' klein
 
     sub = df[df["zoning"].isin(zones) & df["Source"].isin(sources)].copy()
     has_delta = {"low_delta", "up_delta"}.issubset(sub.columns)
@@ -255,7 +255,7 @@ def build_facets(df: pd.DataFrame,
 
     fig.update_layout(
         height=800, width=1000,  # etwas breiter für rechts platzierte Legende
-        title={"text": "Mean order processing time — Delta-Prognoseintervalle", "font": {"size": font_size+4, "color": "#000000"}},
+    # Titel entfernt auf Wunsch
         font=dict(size=font_size, color="#000000"),
         margin=dict(l=10, r=10, t=60, b=10),
         legend=dict(
