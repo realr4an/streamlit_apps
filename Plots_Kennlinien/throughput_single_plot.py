@@ -108,9 +108,7 @@ def load_observed(path: Path) -> pd.DataFrame:
     def _collapse_duplicates(frame: pd.DataFrame, col_name: str) -> pd.DataFrame:
         if list(frame.columns).count(col_name) > 1:
             dups = frame.loc[:, frame.columns == col_name]
-            # Nimm je Zeile den ersten nicht‑NA Wert
             merged = dups.bfill(axis=1).iloc[:, 0]
-            # Entferne alle Duplikat-Spalten
             frame = frame.loc[:, frame.columns != col_name]
             frame[col_name] = merged
         return frame
@@ -124,7 +122,7 @@ def load_observed(path: Path) -> pd.DataFrame:
 
     if "zoning" in df.columns:
         zoning_col = df["zoning"]
-        if isinstance(zoning_col, pd.DataFrame):  # Fallback (sollte nach Collapse nicht mehr passieren)
+        if isinstance(zoning_col, pd.DataFrame):
             zoning_col = zoning_col.iloc[:, 0]
         z = zoning_col.astype(str).str.upper().str.strip()
         df["zoning"] = z.replace(ZONING_NORMALIZE)
@@ -154,17 +152,15 @@ def build_single_plot(
     font_size: int = 18,
 ) -> go.Figure:
     xcol = "systemload"  # kodiert –1…+1
-    xtitle = "Coded source parameter"
+    xtitle = "Coded mean arrival time"  # geändert
 
     d = df[df["zoning"] == zone]
     if d.empty:
         st.warning(f"Keine Daten für Zoning '{zone}'. Verfügbare Zonen: {sorted(df['zoning'].unique().tolist())}")
-    # gewünschte Source-Reihenfolge
-    order = [s for s in ["TA", "NO", "EX"] if s in sources] + [s for s in sources if s not in ["TA","NO","EX"]]
 
+    order = [s for s in ["TA", "NO", "EX"] if s in sources] + [s for s in sources if s not in ["TA","NO","EX"]]
     has_delta = {"low_delta", "up_delta"}.issubset(df.columns)
 
-    # Beobachtungen für dieselbe Zone / Sources
     obs = pd.DataFrame()
     if show_observed and observed is not None and not observed.empty:
         obs = observed[(observed["zoning"] == zone) & (observed["source"].isin(sources))].copy()
@@ -176,7 +172,6 @@ def build_single_plot(
         if s.empty:
             continue
 
-        # Delta-Ribbon (falls vorhanden)
         if has_delta and not s[["low_delta","up_delta"]].isna().all().all():
             fig.add_trace(go.Scatter(
                 x=s[xcol], y=s["low_delta"], mode="lines",
@@ -190,7 +185,6 @@ def build_single_plot(
                 hoverinfo="skip", showlegend=False, legendgroup=src
             ))
 
-        # Mittellinie
         fig.add_trace(go.Scatter(
             x=s[xcol], y=s["prediction"], mode="lines",
             name=SOURCE_MAP.get(src, src),
@@ -198,9 +192,8 @@ def build_single_plot(
             legendgroup=src
         ))
 
-    # --- Beobachtete Punkte (throughput) ---
+    # --- Beobachtete Punkte ---
     if not obs.empty:
-        # Farbige Punkte je Source (ohne eigene Legendeneinträge)
         for src in order:
             src_pts = obs[obs["source"] == src]
             if src_pts.empty or src_pts["throughput"].isna().all():
@@ -216,13 +209,12 @@ def build_single_plot(
                         color=colors.get(src, "#666"),
                         line=dict(width=0.5, color="#222"),
                     ),
-                    name="Observation (colored)",  # Platzhalter, nicht in Legende
+                    name="Observation (colored)",
                     legendgroup="obs",
                     showlegend=False,
-                    hovertemplate="Observation<br>Systemload: %{x}<br>Throughput: %{y}<extra></extra>",
+                    hovertemplate="Observation<br>Coded mean arrival time: %{x}<br>Throughput: %{y}<extra></extra>",  # angepasst
                 )
             )
-        # Ein einzelner weißer Legendeneintrag (nur in Legende sichtbar)
         fig.add_trace(
             go.Scatter(
                 x=[0], y=[0], mode="markers",
@@ -239,7 +231,7 @@ def build_single_plot(
         height=700, width=700,
         margin=dict(l=40, r=20, t=20, b=40),
         legend=dict(
-            title=dict(text="Source", font=dict(size=font_size-2, color="#000000")),
+            title=dict(text="Arrival time", font=dict(size=font_size-2, color="#000000")),  # geändert
             font=dict(size=font_size-2, color="#000000")
         ),
         font=dict(size=font_size, color="#000000")
@@ -251,12 +243,11 @@ def build_single_plot(
         title_font=dict(size=font_size, color="#000000"),
         tickfont=dict(size=font_size-2, color="#000000")
     )
-    # Fixe Y-Achse 0–15000, volle Zahlen ohne k-Abkürzung
     fig.update_yaxes(
         title_text="Throughput",
         range=[0, 15000], autorange=False,
-    tickmode="array", tickvals=[0, 5000, 10000, 15000],
-    tickformat=".0f",  # keine wissenschaftl. Notation, keine k-Suffixe
+        tickmode="array", tickvals=[0, 5000, 10000, 15000],
+        tickformat=".0f",
         showexponent="none",
         zeroline=False,
         title_font=dict(size=font_size, color="#000000"),
@@ -267,7 +258,7 @@ def build_single_plot(
 # ----------------------- App --------------------------------
 def main():
     st.set_page_config(page_title="Single Throughput Plot", layout="centered")
-    st.title("Durchsatz vs. Systemlast (Einzelplot) — Delta-Intervalle")
+    st.title("Durchsatz vs. Coded mean arrival time (Einzelplot) — Delta-Intervalle")
 
     path = _find_data_file()
     df = load_data(path)
@@ -287,7 +278,7 @@ def main():
     sources_all = sorted(df["source"].dropna().unique().tolist())
     default_sources = [s for s in ["TA","NO","EX"] if s in sources_all] or sources_all
     sources = st.multiselect(
-        "Source", options=sources_all, default=default_sources,
+        "Arrival time", options=sources_all, default=default_sources,  # geändert
         format_func=lambda s: SOURCE_MAP.get(s, s),
     )
 
@@ -313,7 +304,7 @@ def main():
         if not {"low_delta","up_delta"}.issubset(df.columns):
             st.warning("Delta-Intervalle nicht im Datensatz gefunden – es wird nur die Mittellinie gezeichnet.")
     else:
-        st.info("Bitte eine Zoning-Strategie und mindestens eine Quelle wählen.")
+        st.info("Bitte eine Zoning-Strategie und mindestens eine Arrival time wählen.")  # geändert
 
 if __name__ == "__main__":
     main()
