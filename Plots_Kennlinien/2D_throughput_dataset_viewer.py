@@ -138,7 +138,7 @@ def build_facets(df: pd.DataFrame,
 
     # Immer kodierte X-Achse –1…+1
     x_col   = "systemload"
-    x_title = "Coded source parameter"  # 'source' klein
+    x_title = "Coded mean arrival time"  # umbenannt
 
     sub = df[df["zoning"].isin(zones) & df["Source"].isin(sources)].copy()
     has_delta = {"low_delta", "up_delta"}.issubset(sub.columns)
@@ -255,12 +255,13 @@ def build_facets(df: pd.DataFrame,
 
     fig.update_layout(
         height=800, width=1000,  # etwas breiter für rechts platzierte Legende
-    # Titel entfernt auf Wunsch
+        # Titel entfernt auf Wunsch
         font=dict(size=font_size, color="#000000"),
         margin=dict(l=10, r=10, t=60, b=10),
         legend=dict(
             orientation="v",
-            title=dict(text="Source", font=dict(size=font_size-2, color="#000000")),
+            title=dict(text="Arrival time",  # umbenannt
+                       font=dict(size=font_size-2, color="#000000")),
             x=1.02, xanchor="left", y=1, yanchor="top",
             font=dict(size=font_size-2, color="#000000"),
             bgcolor="rgba(255,255,255,0.0)",
@@ -292,7 +293,8 @@ def main():
     sources_in_data = df["Source"].dropna().unique().tolist()
     source_options = _order_sources(sources_in_data)
     sources = st.sidebar.multiselect(
-        "Source", options=source_options, default=source_options,
+        "Arrival time",  # umbenannt (ehem. "Source")
+        options=source_options, default=source_options,
         format_func=lambda s: SOURCE_MAP.get(s, s),
     )
 
