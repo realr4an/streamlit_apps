@@ -306,15 +306,15 @@ def main():
     show_obs_points = st.sidebar.checkbox("Show observed mean order processing time", True)  # moved up
 
     st.sidebar.markdown("---")
-    st.sidebar.caption("Colors")  # translated
+    st.sidebar.caption("Colors")
     col_ta = st.sidebar.color_picker("Tacted", "#D55E00")
     col_no = st.sidebar.color_picker("Normal", "#0072B2")
     col_ex = st.sidebar.color_picker("Exponential", "#009E73")
-    ribbon_alpha = st.sidebar.slider("Ribbon transparency", 0.05, 0.9, 0.18, 0.01)
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
-    font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)
-    line_width = st.sidebar.slider("Line width", 1, 6, 2, 1)              # new
-    plot_size = st.sidebar.slider("Plot size (px)", 600, 1400, 1000, 50)   # new
+    line_width = st.sidebar.slider("Line width", 1, 6, 2, 1)              # moved up
+    font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)        # moved up
+    plot_size = st.sidebar.slider("Plot size (px)", 600, 1400, 1000, 50)  # moved up
+    ribbon_alpha = st.sidebar.slider("Ribbon transparency", 0.05, 0.9, 0.18, 0.01)  # moved down
 
     if zones and sources:
         fig = build_facets(
