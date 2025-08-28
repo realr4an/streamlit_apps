@@ -303,6 +303,7 @@ def main():
 
     y_lock = st.sidebar.checkbox("Uniform y-range across panels", True)
     y_zero = st.sidebar.checkbox("Force y-axis start at 0", False)
+    show_obs_points = st.sidebar.checkbox("Show observed mean order processing time", True)  # moved up
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Colors")  # translated
@@ -311,7 +312,6 @@ def main():
     col_ex = st.sidebar.color_picker("Exponential", "#009E73")
     ribbon_alpha = st.sidebar.slider("Ribbon transparency", 0.05, 0.9, 0.18, 0.01)
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
-    show_obs_points = st.sidebar.checkbox("Show observed mean order processing time", True)
     font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)
     line_width = st.sidebar.slider("Line width", 1, 6, 2, 1)              # new
     plot_size = st.sidebar.slider("Plot size (px)", 600, 1400, 1000, 50)   # new
