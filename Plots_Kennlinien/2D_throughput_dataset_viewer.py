@@ -18,7 +18,7 @@ SOURCE_ORDER = ["TA","NO","EX"]
 OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 
 def _find_data_file() -> Path:
-    cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30 4.xlsx"))
+    cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30 5.xlsx"))
     if not cands:
         raise FileNotFoundError("No data.mopt.2d*.xlsx file found in script directory.")
     return cands[0]
