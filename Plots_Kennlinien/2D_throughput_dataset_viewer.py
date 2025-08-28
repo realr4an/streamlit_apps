@@ -131,6 +131,8 @@ def build_facets(df: pd.DataFrame,
                  y_zero: bool,
                  colors: dict[str, str],
                  ribbon_alpha: float,
+                 line_width: int,            # added
+                 plot_size: int,             # added (for layout sizing)
                  observed: pd.DataFrame | None = None,
                  show_obs_points: bool = False,
                  font_size: int = 18) -> go.Figure:
@@ -194,7 +196,7 @@ def build_facets(df: pd.DataFrame,
             if not d.empty:
                 fig.add_trace(
                     go.Scatter(x=d[x_col], y=d["prediction"], mode="lines",
-                               line=dict(color=colors.get(src, "#444444"), width=2),
+                               line=dict(color=colors.get(src, "#444444"), width=line_width),  # use dynamic width
                                name=SOURCE_MAP.get(src, src),
                                legendgroup=src, showlegend=(idx == 0), legendrank=10 + sources_ordered.index(src)),
                     row=r, col=c
@@ -255,13 +257,13 @@ def build_facets(df: pd.DataFrame,
         )
 
     fig.update_layout(
-        height=800, width=1000,  # etwas breiter für rechts platzierte Legende
+        height=plot_size, width=plot_size,  # dynamic size
         # Titel entfernt auf Wunsch
         font=dict(size=font_size, color="#000000"),
         margin=dict(l=10, r=10, t=60, b=10),
         legend=dict(
             orientation="v",
-            title=dict(text="Arrival distribution",  # geändert
+            title=dict(text="Arrival distribution",
                        font=dict(size=font_size-2, color="#000000")),
             x=1.02, xanchor="left", y=1, yanchor="top",
             font=dict(size=font_size-2, color="#000000"),
@@ -307,19 +309,22 @@ def main():
     col_ta = st.sidebar.color_picker("Tacted", "#D55E00")
     col_no = st.sidebar.color_picker("Normal", "#0072B2")
     col_ex = st.sidebar.color_picker("Exponential", "#009E73")
-    ribbon_alpha = st.sidebar.slider("Ribbon transparency", 0.05, 0.9, 0.18, 0.01)  # translated
+    ribbon_alpha = st.sidebar.slider("Ribbon transparency", 0.05, 0.9, 0.18, 0.01)
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
-    show_obs_points = st.sidebar.checkbox("Show observed mean order processing time", True)  # label updated
-    font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)  # translated
+    show_obs_points = st.sidebar.checkbox("Show observed mean order processing time", True)
+    font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)
+    line_width = st.sidebar.slider("Line width", 1, 6, 2, 1)              # new
+    plot_size = st.sidebar.slider("Plot size (px)", 600, 1400, 1000, 50)   # new
 
     if zones and sources:
         fig = build_facets(
             df, zones, sources, y_lock, y_zero, colors, ribbon_alpha,
+            line_width, plot_size,
             observed=observed_df, show_obs_points=show_obs_points, font_size=font_size
         )
         st.plotly_chart(
             fig, use_container_width=False,
-            key=f"facets-{y_lock}-{y_zero}"  # updated (removed y_top_pad)
+            key=f"facets-{y_lock}-{y_zero}-{line_width}-{plot_size}"
         )
         if not {"low_delta","up_delta"}.issubset(df.columns):
             st.warning("Delta intervals not found in dataset – only the central line is drawn.")

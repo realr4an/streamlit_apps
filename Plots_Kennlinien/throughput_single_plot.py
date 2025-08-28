@@ -286,7 +286,8 @@ def main():
     line_width = st.sidebar.slider("Line width", 1, 6, 3, 1)
     show_observed = st.sidebar.checkbox("Show observed throughput", value=True)
     font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)
-    plot_size = st.sidebar.slider("Plot size (px)", 400, 900, 700, 10)  # translated
+    plot_size = st.sidebar.slider("Plot size (px)", 400, 900, 700, 10)
+    ribbon_alpha = st.sidebar.slider("Ribbon transparency", 0.05, 0.9, 0.18, 0.01)  # added
     st.sidebar.markdown("---")
     st.sidebar.caption("Colors")
     col_ta = st.sidebar.color_picker("Tacted", "#D55E00")
@@ -297,7 +298,7 @@ def main():
     # Plot in main area
     if zone and sources:
         fig = build_single_plot(
-            df, zone, sources, colors, line_width, ribbon_alpha=0.18,
+            df, zone, sources, colors, line_width, ribbon_alpha=ribbon_alpha,  # use slider value
             observed=observed_df, show_observed=show_observed, font_size=font_size
         )
         fig.update_layout(width=plot_size, height=plot_size)
