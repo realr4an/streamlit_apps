@@ -129,7 +129,6 @@ def build_facets(df: pd.DataFrame,
                  sources: list[str],
                  y_lock: bool,
                  y_zero: bool,
-                 y_top_pad: float,
                  colors: dict[str, str],
                  ribbon_alpha: float,
                  observed: pd.DataFrame | None = None,
@@ -285,10 +284,10 @@ def main():
     df = load_data(path)
     observed_df = load_observed(OBS_DATA_FILE)
 
-    st.sidebar.header("Display")  # translated
+    st.sidebar.header("Display")
     zone_options = ["BU","TD","RA","SQ"]
     zones = st.sidebar.multiselect(
-        "Zoning", options=zone_options, default=zone_options,
+        "Assignment strategy", options=zone_options, default=zone_options,  # renamed
         format_func=lambda z: ZONE_MAP.get(z, z),
     )
 
@@ -300,9 +299,8 @@ def main():
         format_func=lambda s: SOURCE_MAP.get(s, s),
     )
 
-    y_lock = st.sidebar.checkbox("Uniform y-range across panels", True)  # translated
-    y_zero = st.sidebar.checkbox("Force y-axis start at 0", False)  # translated
-    y_top_pad = st.sidebar.number_input("Top padding (+)", min_value=0.0, value=20.0, step=1.0, format="%.0f")  # translated
+    y_lock = st.sidebar.checkbox("Uniform y-range across panels", True)
+    y_zero = st.sidebar.checkbox("Force y-axis start at 0", False)
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Colors")  # translated
@@ -316,18 +314,17 @@ def main():
 
     if zones and sources:
         fig = build_facets(
-            df, zones, sources, y_lock, y_zero, y_top_pad, colors, ribbon_alpha,
+            df, zones, sources, y_lock, y_zero, colors, ribbon_alpha,
             observed=observed_df, show_obs_points=show_obs_points, font_size=font_size
         )
-        # WICHTIG: key abhängig vom Puffer (und y_lock/y_zero), damit Streamlit neu zeichnet
         st.plotly_chart(
             fig, use_container_width=False,
-            key=f"facets-{y_lock}-{y_zero}-{y_top_pad}"
+            key=f"facets-{y_lock}-{y_zero}"  # updated (removed y_top_pad)
         )
         if not {"low_delta","up_delta"}.issubset(df.columns):
-            st.warning("Delta intervals not found in dataset – only the central line is drawn.")  # translated
+            st.warning("Delta intervals not found in dataset – only the central line is drawn.")
     else:
-        st.info("Please select at least one zoning strategy and one arrival distribution.")  # translated
+        st.info("Please select at least one assignment strategy and one arrival distribution.")  # updated wording
 
 if __name__ == "__main__":
     main()
