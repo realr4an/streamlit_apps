@@ -145,7 +145,6 @@ def build_single_plot(
     sources,
     colors: dict,
     line_width: int,
-    y_zero: bool,
     ribbon_alpha: float = 0.18,
     observed: pd.DataFrame | None = None,
     show_observed: bool = True,
@@ -258,8 +257,8 @@ def build_single_plot(
 
 # ----------------------- App --------------------------------
 def main():
-    st.set_page_config(page_title="Single Throughput Plot", layout="centered")
-    st.title("Durchsatz vs. Coded mean arrival time (Einzelplot) — Delta-Intervalle")
+    st.set_page_config(page_title="Single Throughput Plot", layout="wide")  # layout angepasst
+    st.title("Durchsatz vs. Coded mean arrival time (Einzelplot) — Delta-Intervallen")
 
     path = _find_data_file()
     df = load_data(path)
@@ -272,40 +271,42 @@ def main():
     zones_in_data = sorted(df["zoning"].dropna().unique().tolist())
     preferred_order = [z for z in ["BU","TD","RA","SQ"] if z in zones_in_data]
     zones_available = preferred_order or zones_in_data
+    zone = zones_available[0] if zones_available else None  # automatische Auswahl erste Zone
 
-    zone = st.selectbox("Zoning", zones_available, index=0,
-                        format_func=lambda z: ZONE_MAP.get(z, z))
+    # Sidebar-Steuerung (statt zentraler UI)
+    st.sidebar.header("Anzeige")
 
     sources_all = sorted(df["source"].dropna().unique().tolist())
     default_sources = [s for s in ["TA","NO","EX"] if s in sources_all] or sources_all
-    sources = st.multiselect(
-        "Arrival distribution", options=sources_all, default=default_sources,  # geändert
+    sources = st.sidebar.multiselect(
+        "Arrival distribution", options=sources_all, default=default_sources,
         format_func=lambda s: SOURCE_MAP.get(s, s),
+        key="sources_select"  # eindeutiger Key hinzugefügt
     )
+    line_width = st.sidebar.slider("Linienbreite", 1, 6, 3, 1)
+    show_observed = st.sidebar.checkbox("Beobachtete throughput anzeigen", value=True)
+    font_size = st.sidebar.slider("Grund-Schriftgröße", 10, 40, 20, 1)
+    plot_size = st.sidebar.slider("Plot-Kantenlänge", 400, 900, 700, 10)  # neu
 
-    line_width = st.slider("Linienbreite", 1, 6, 3, 1)
-    y_zero = st.checkbox("Y-Achse bei 0 beginnen lassen", value=False)
-    show_observed = st.checkbox("Beobachtete throughput anzeigen", value=True)
-    font_size = st.slider("Grund-Schriftgröße", 10, 40, 20, 1)
-
-    st.markdown("**Farben**")
-    col1, col2, col3 = st.columns(3)
-    with col1: col_ta = st.color_picker("Tacted", "#D55E00")
-    with col2: col_no = st.color_picker("Normal", "#7A88C2")
-    with col3: col_ex = st.color_picker("Exponential", "#7CC68E")
+    st.sidebar.markdown("---")
+    st.sidebar.caption("Farben")
+    col_ta = st.sidebar.color_picker("Tacted", "#D55E00")
+    col_no = st.sidebar.color_picker("Normal", "#7A88C2")
+    col_ex = st.sidebar.color_picker("Exponential", "#7CC68E")
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
 
+    # Plot im Hauptbereich
     if zone and sources:
         fig = build_single_plot(
-            df, zone, sources, colors, line_width, y_zero, ribbon_alpha=0.18,
+            df, zone, sources, colors, line_width, ribbon_alpha=0.18,
             observed=observed_df, show_observed=show_observed, font_size=font_size
         )
-        st.plotly_chart(fig, use_container_width=False)
-        st.caption(f"Zoning: {ZONE_MAP.get(zone, zone)}")
+        fig.update_layout(width=plot_size, height=plot_size)  # quadratisch setzen
+        st.plotly_chart(fig, use_container_width=False)  # kein auto-stretch
         if not {"low_delta","up_delta"}.issubset(df.columns):
             st.warning("Delta-Intervalle nicht im Datensatz gefunden – es wird nur die Mittellinie gezeichnet.")
     else:
-        st.info("Bitte eine Zoning-Strategie und mindestens eine Arrival distribution wählen.")  # geändert
+        st.info("Mindestens eine Arrival distribution wählen.")
 
 if __name__ == "__main__":
     main()
