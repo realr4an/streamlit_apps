@@ -138,7 +138,7 @@ def build_facets(df: pd.DataFrame,
 
     # Immer kodierte X-Achse –1…+1
     x_col   = "systemload"
-    x_title = "Coded mean arrival time"  # umbenannt
+    x_title = "Mean arrival time"  # geändert
 
     sub = df[df["zoning"].isin(zones) & df["Source"].isin(sources)].copy()
     has_delta = {"low_delta", "up_delta"}.issubset(sub.columns)
@@ -218,10 +218,12 @@ def build_facets(df: pd.DataFrame,
                         row=r, col=c
                     )
 
-        # X-Achse fix –1…+1
+        # X-Achse fix –1…+1, Labels 10,15,20,25,30
         fig.update_xaxes(
             title_text=x_title, range=[-1, 1], autorange=False,
-            tickmode="array", tickvals=[-1, -0.5, 0, 0.5, 1],
+            tickmode="array",
+            tickvals=[-1, -0.5, 0, 0.5, 1],
+            ticktext=["10", "15", "20", "25", "30"],
             zeroline=False, row=r, col=c,
             title_font=dict(size=font_size, color="#000000"),
             tickfont=dict(size=font_size-2, color="#000000")
@@ -260,7 +262,7 @@ def build_facets(df: pd.DataFrame,
         margin=dict(l=10, r=10, t=60, b=10),
         legend=dict(
             orientation="v",
-            title=dict(text="Arrival time",  # umbenannt
+            title=dict(text="Arrival distribution",  # geändert
                        font=dict(size=font_size-2, color="#000000")),
             x=1.02, xanchor="left", y=1, yanchor="top",
             font=dict(size=font_size-2, color="#000000"),
@@ -293,7 +295,7 @@ def main():
     sources_in_data = df["Source"].dropna().unique().tolist()
     source_options = _order_sources(sources_in_data)
     sources = st.sidebar.multiselect(
-        "Arrival time",  # umbenannt (ehem. "Source")
+        "Arrival distribution",  # geändert (ehem. "Arrival time")
         options=source_options, default=source_options,
         format_func=lambda s: SOURCE_MAP.get(s, s),
     )

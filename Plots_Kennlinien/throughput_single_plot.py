@@ -152,7 +152,7 @@ def build_single_plot(
     font_size: int = 18,
 ) -> go.Figure:
     xcol = "systemload"  # kodiert –1…+1
-    xtitle = "Coded mean arrival time"  # geändert
+    xtitle = "Mean arrival time"  # geändert
 
     d = df[df["zoning"] == zone]
     if d.empty:
@@ -212,7 +212,7 @@ def build_single_plot(
                     name="Observation (colored)",
                     legendgroup="obs",
                     showlegend=False,
-                    hovertemplate="Observation<br>Coded mean arrival time: %{x}<br>Throughput: %{y}<extra></extra>",  # angepasst
+                    hovertemplate="Observation<br>Mean arrival time: %{x}<br>Throughput: %{y}<extra></extra>",  # geändert
                 )
             )
         fig.add_trace(
@@ -231,7 +231,7 @@ def build_single_plot(
         height=700, width=700,
         margin=dict(l=40, r=20, t=20, b=40),
         legend=dict(
-            title=dict(text="Arrival time", font=dict(size=font_size-2, color="#000000")),  # geändert
+            title=dict(text="Arrival distribution", font=dict(size=font_size-2, color="#000000")),  # geändert
             font=dict(size=font_size-2, color="#000000")
         ),
         font=dict(size=font_size, color="#000000")
@@ -239,6 +239,7 @@ def build_single_plot(
     fig.update_xaxes(
         title_text=xtitle, range=[-1, 1],
         tickmode="array", tickvals=[-1, -0.5, 0, 0.5, 1],
+        ticktext=["10", "15", "20", "25", "30"],  # neue Labels
         zeroline=False,
         title_font=dict(size=font_size, color="#000000"),
         tickfont=dict(size=font_size-2, color="#000000")
@@ -278,7 +279,7 @@ def main():
     sources_all = sorted(df["source"].dropna().unique().tolist())
     default_sources = [s for s in ["TA","NO","EX"] if s in sources_all] or sources_all
     sources = st.multiselect(
-        "Arrival time", options=sources_all, default=default_sources,  # geändert
+        "Arrival distribution", options=sources_all, default=default_sources,  # geändert
         format_func=lambda s: SOURCE_MAP.get(s, s),
     )
 
@@ -304,7 +305,7 @@ def main():
         if not {"low_delta","up_delta"}.issubset(df.columns):
             st.warning("Delta-Intervalle nicht im Datensatz gefunden – es wird nur die Mittellinie gezeichnet.")
     else:
-        st.info("Bitte eine Zoning-Strategie und mindestens eine Arrival time wählen.")  # geändert
+        st.info("Bitte eine Zoning-Strategie und mindestens eine Arrival distribution wählen.")  # geändert
 
 if __name__ == "__main__":
     main()
