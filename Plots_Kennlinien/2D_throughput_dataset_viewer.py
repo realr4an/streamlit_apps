@@ -20,7 +20,7 @@ OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 def _find_data_file() -> Path:
     cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30 4.xlsx"))
     if not cands:
-        raise FileNotFoundError("Keine Datei data.mopt.2d*.xlsx im Skriptordner gefunden.")
+        raise FileNotFoundError("No data.mopt.2d*.xlsx file found in script directory.")
     return cands[0]
 
 def _rgba(hex_color: str, alpha: float) -> str:
@@ -213,7 +213,7 @@ def build_facets(df: pd.DataFrame,
                             name="Observed mopt (colored)",
                             legendgroup="obs_mopt",
                             showlegend=False,
-                            hovertemplate="Observed mopt<br>Systemload: %{x}<br>mopt: %{y}<extra></extra>",
+                            hovertemplate="Observed mopt<br>Mean arrival time: %{x}<br>mopt: %{y}<extra></extra>",  # translated
                         ),
                         row=r, col=c
                     )
@@ -278,14 +278,14 @@ def build_facets(df: pd.DataFrame,
     return fig
 
 def main():
-    st.set_page_config(page_title="2-D-Kennlinien (Delta)", layout="wide")
-    st.title("2-D-Kennlinien mit Delta-Prognoseintervallen")
+    st.set_page_config(page_title="2-D curves (Delta)", layout="wide")  # translated
+    st.title("LOC of mean order processing time")
 
     path = _find_data_file()
     df = load_data(path)
     observed_df = load_observed(OBS_DATA_FILE)
 
-    st.sidebar.header("Anzeige")
+    st.sidebar.header("Display")  # translated
     zone_options = ["BU","TD","RA","SQ"]
     zones = st.sidebar.multiselect(
         "Zoning", options=zone_options, default=zone_options,
@@ -295,24 +295,24 @@ def main():
     sources_in_data = df["Source"].dropna().unique().tolist()
     source_options = _order_sources(sources_in_data)
     sources = st.sidebar.multiselect(
-        "Arrival distribution",  # geändert (ehem. "Arrival time")
+        "Arrival distribution",
         options=source_options, default=source_options,
         format_func=lambda s: SOURCE_MAP.get(s, s),
     )
 
-    y_lock = st.sidebar.checkbox("Einheitlicher y-Bereich über Panels", True)
-    y_zero = st.sidebar.checkbox("Y-Achse bei 0 beginnen lassen", False)
-    y_top_pad = st.sidebar.number_input("Puffer oben (+)", min_value=0.0, value=20.0, step=1.0, format="%.0f")
+    y_lock = st.sidebar.checkbox("Uniform y-range across panels", True)  # translated
+    y_zero = st.sidebar.checkbox("Force y-axis start at 0", False)  # translated
+    y_top_pad = st.sidebar.number_input("Top padding (+)", min_value=0.0, value=20.0, step=1.0, format="%.0f")  # translated
 
     st.sidebar.markdown("---")
-    st.sidebar.caption("Farben")
+    st.sidebar.caption("Colors")  # translated
     col_ta = st.sidebar.color_picker("Tacted", "#D55E00")
     col_no = st.sidebar.color_picker("Normal", "#0072B2")
     col_ex = st.sidebar.color_picker("Exponential", "#009E73")
-    ribbon_alpha = st.sidebar.slider("Ribbon-Transparenz", 0.05, 0.9, 0.18, 0.01)
+    ribbon_alpha = st.sidebar.slider("Ribbon transparency", 0.05, 0.9, 0.18, 0.01)  # translated
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
-    show_obs_points = st.sidebar.checkbox("Beobachtete mopt-Punkte anzeigen", True)
-    font_size = st.sidebar.slider("Grund-Schriftgröße", 10, 40, 20, 1)
+    show_obs_points = st.sidebar.checkbox("Show observed mopt points", True)  # translated
+    font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)  # translated
 
     if zones and sources:
         fig = build_facets(
@@ -325,9 +325,9 @@ def main():
             key=f"facets-{y_lock}-{y_zero}-{y_top_pad}"
         )
         if not {"low_delta","up_delta"}.issubset(df.columns):
-            st.warning("Delta-Intervalle nicht im Datensatz gefunden – es wird nur die Mittellinie gezeichnet.")
+            st.warning("Delta intervals not found in dataset – only the central line is drawn.")  # translated
     else:
-        st.info("Bitte mindestens eine Zoning-Strategie und eine Quelle wählen.")
+        st.info("Please select at least one zoning strategy and one arrival distribution.")  # translated
 
 if __name__ == "__main__":
     main()

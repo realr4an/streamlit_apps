@@ -1,7 +1,7 @@
 # ------------------------------------------------------------
 # throughput_single_plot_app.py
-# 2D-Plot (kodierte Systemlast –1…+1) mit Delta-Intervallen (falls vorhanden)
-# abgestimmt auf: data.throughput.2d_10_30 4.xlsx
+# 2D-Plot (encoded system load –1…+1) with delta intervals (if available)
+# tuned for: data.throughput.2d_10_30 4.xlsx
 # ------------------------------------------------------------
 from pathlib import Path
 import warnings
@@ -10,7 +10,7 @@ import streamlit as st
 import plotly.graph_objects as go
 
 BASE_DIR = Path(__file__).resolve().parent
-# Pfad zur Beobachtungsdatei
+# Path to the observation file
 OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 
 # ----------------------- Mappings ---------------------------
@@ -22,7 +22,7 @@ ZONE_MAP = {
 }
 SOURCE_MAP = {"TA": "Tacted", "NO": "Normal", "EX": "Exponential"}
 
-# Optionale Normalisierung für Tippfehler/Varianten
+# Optional normalization for typos/variants
 ZONING_NORMALIZE = {
     "BA": "BU", "BOTTOM-UP": "BU", "BOTTOM UP": "BU",
     "TOP-DOWN": "TD", "TOP DOWN": "TD",
@@ -30,7 +30,7 @@ ZONING_NORMALIZE = {
     "SHORTEST QUEUE": "SQ",
 }
 
-# ----------------------- Datei finden -----------------------
+# ----------------------- Find file -----------------------
 def _find_data_file() -> Path:
     patterns = [
         "data.throughput.2d_10_30 6.xlsx"
@@ -39,16 +39,16 @@ def _find_data_file() -> Path:
         cands = sorted(BASE_DIR.glob(pat))
         if cands:
             return cands[0]
-    raise FileNotFoundError("Keine passende Excel-Datei gefunden.")
+    raise FileNotFoundError("No matching Excel file found.")
 
-# ----------------------- Laden & Aufbereiten ----------------
+# ----------------------- Load & Prepare ----------------
 @st.cache_data
 def load_data(path: Path) -> pd.DataFrame:
     warnings.filterwarnings("ignore", message="Workbook contains no default style",
                             category=UserWarning, module="openpyxl")
     df = pd.read_excel(path)
 
-    # Spalten harmonisieren auf interne Namen
+    # Harmonize columns to internal names
     rename_map = {
         # X
         "systemload": "systemload",
@@ -60,28 +60,28 @@ def load_data(path: Path) -> pd.DataFrame:
         "prediction": "prediction",
         "predicted_throughput": "prediction",
         "predicted_mopt": "prediction",
-        # Intervalle (Delta)
+        # Intervals (Delta)
         "low.delta": "low_delta",
         "up.delta":  "up_delta",
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
 
-    # Quelle: "Source" (groß) → "source"
+    # Source: "Source" (uppercase) → "source"
     if "Source" in df.columns and "source" not in df.columns:
         df["source"] = df["Source"]
     if "source" not in df.columns:
         df["source"] = "ALL"
 
-    # Unnötige Indexspalte entfernen
+    # Remove unnecessary index column
     if "Unnamed: 0" in df.columns:
         df = df.drop(columns=["Unnamed: 0"])
 
-    # Numerik absichern
+    # Ensure numeric types
     for c in ["systemload", "prediction", "low_delta", "up_delta"]:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    # Kategorien normalisieren (Upper/Trim + Mapping BA→BU etc.)
+    # Normalize categories (Upper/Trim + Mapping BA→BU etc.)
     if "zoning" in df.columns:
         z = df["zoning"].astype(str).str.upper().str.strip()
         df["zoning"] = z.replace(ZONING_NORMALIZE)
@@ -92,8 +92,8 @@ def load_data(path: Path) -> pd.DataFrame:
 
 @st.cache_data
 def load_observed(path: Path) -> pd.DataFrame:
-    """Rohdatensatz mit beobachteten throughput & mopt laden.
-    Behebt auch doppelte Spalten nach dem Rename (z.B. distributionstrategy + distributinstrategy → zoning).
+    """Load raw dataset with observed throughput & mopt.
+    Also fixes duplicate columns after rename (e.g. distributionstrategy + distributinstrategy → zoning).
     """
     if not path.exists():
         raise FileNotFoundError(str(path))
@@ -101,7 +101,7 @@ def load_observed(path: Path) -> pd.DataFrame:
     rename_map = {
         "coded_sourceparameter": "systemload",
         "distributionstrategy": "zoning",
-        "distributinstrategy": "zoning",  # Schreibvariante laut Angabe
+        "distributinstrategy": "zoning",  # Variant according to specification
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
 
@@ -138,7 +138,7 @@ def _rgba(hex_color: str, alpha: float) -> str:
     r, g, b = (int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     return f"rgba({r},{g},{b},{alpha})"
 
-# ----------------------- Plot bauen -------------------------
+# ----------------------- Build plot -------------------------
 def build_single_plot(
     df: pd.DataFrame,
     zone: str,
@@ -150,12 +150,12 @@ def build_single_plot(
     show_observed: bool = True,
     font_size: int = 18,
 ) -> go.Figure:
-    xcol = "systemload"  # kodiert –1…+1
-    xtitle = "Mean arrival time"  # geändert
+    xcol = "systemload"  # encoded –1…+1
+    xtitle = "Mean arrival time"  # changed
 
     d = df[df["zoning"] == zone]
     if d.empty:
-        st.warning(f"Keine Daten für Zoning '{zone}'. Verfügbare Zonen: {sorted(df['zoning'].unique().tolist())}")
+        st.warning(f"No data for zoning '{zone}'. Available: {sorted(df['zoning'].unique().tolist())}")
 
     order = [s for s in ["TA", "NO", "EX"] if s in sources] + [s for s in sources if s not in ["TA","NO","EX"]]
     has_delta = {"low_delta", "up_delta"}.issubset(df.columns)
@@ -165,7 +165,7 @@ def build_single_plot(
         obs = observed[(observed["zoning"] == zone) & (observed["source"].isin(sources))].copy()
 
     fig = go.Figure()
-    # --- Vorhersage-Linien + Intervalle ---
+    # --- Forecast lines + intervals ---
     for src in order:
         s = d[d["source"] == src].sort_values(xcol)
         if s.empty:
@@ -191,7 +191,7 @@ def build_single_plot(
             legendgroup=src
         ))
 
-    # --- Beobachtete Punkte ---
+    # --- Observed points ---
     if not obs.empty:
         for src in order:
             src_pts = obs[obs["source"] == src]
@@ -211,7 +211,7 @@ def build_single_plot(
                     name="Observation (colored)",
                     legendgroup="obs",
                     showlegend=False,
-                    hovertemplate="Observation<br>Mean arrival time: %{x}<br>Throughput: %{y}<extra></extra>",  # geändert
+                    hovertemplate="Observation<br>Mean arrival time: %{x}<br>Throughput: %{y}<extra></extra>",  # changed
                 )
             )
         fig.add_trace(
@@ -230,7 +230,7 @@ def build_single_plot(
         height=700, width=700,
         margin=dict(l=40, r=20, t=20, b=40),
         legend=dict(
-            title=dict(text="Arrival distribution", font=dict(size=font_size-2, color="#000000")),  # geändert
+            title=dict(text="Arrival distribution", font=dict(size=font_size-2, color="#000000")),  # changed
             font=dict(size=font_size-2, color="#000000")
         ),
         font=dict(size=font_size, color="#000000")
@@ -238,7 +238,7 @@ def build_single_plot(
     fig.update_xaxes(
         title_text=xtitle, range=[-1, 1],
         tickmode="array", tickvals=[-1, -0.5, 0, 0.5, 1],
-        ticktext=["10", "15", "20", "25", "30"],  # neue Labels
+        ticktext=["10", "15", "20", "25", "30"],  # new labels
         zeroline=False,
         title_font=dict(size=font_size, color="#000000"),
         tickfont=dict(size=font_size-2, color="#000000")
@@ -257,8 +257,8 @@ def build_single_plot(
 
 # ----------------------- App --------------------------------
 def main():
-    st.set_page_config(page_title="Single Throughput Plot", layout="wide")  # layout angepasst
-    st.title("Durchsatz vs. Coded mean arrival time (Einzelplot) — Delta-Intervallen")
+    st.set_page_config(page_title="Single Throughput Plot", layout="wide")
+    st.title("LOC of throughput")
 
     path = _find_data_file()
     df = load_data(path)
@@ -266,47 +266,46 @@ def main():
         observed_df = load_observed(OBS_DATA_FILE)
     except FileNotFoundError:
         observed_df = pd.DataFrame()
-        st.warning("Beobachtungsdatei 'data.xlsx' nicht gefunden – keine Punkte geplottet.")
+        st.warning("Observation file 'data.xlsx' not found – no points plotted.")
 
     zones_in_data = sorted(df["zoning"].dropna().unique().tolist())
     preferred_order = [z for z in ["BU","TD","RA","SQ"] if z in zones_in_data]
     zones_available = preferred_order or zones_in_data
-    zone = zones_available[0] if zones_available else None  # automatische Auswahl erste Zone
+    zone = zones_available[0] if zones_available else None  # automatic selection of first zone
 
-    # Sidebar-Steuerung (statt zentraler UI)
-    st.sidebar.header("Anzeige")
+    # Sidebar control (instead of central UI)
+    st.sidebar.header("Display")
 
     sources_all = sorted(df["source"].dropna().unique().tolist())
     default_sources = [s for s in ["TA","NO","EX"] if s in sources_all] or sources_all
     sources = st.sidebar.multiselect(
         "Arrival distribution", options=sources_all, default=default_sources,
         format_func=lambda s: SOURCE_MAP.get(s, s),
-        key="sources_select"  # eindeutiger Key hinzugefügt
+        key="sources_select"
     )
-    line_width = st.sidebar.slider("Linienbreite", 1, 6, 3, 1)
-    show_observed = st.sidebar.checkbox("Beobachtete throughput anzeigen", value=True)
-    font_size = st.sidebar.slider("Grund-Schriftgröße", 10, 40, 20, 1)
-    plot_size = st.sidebar.slider("Plot-Kantenlänge", 400, 900, 700, 10)  # neu
-
+    line_width = st.sidebar.slider("Line width", 1, 6, 3, 1)
+    show_observed = st.sidebar.checkbox("Show observed throughput", value=True)
+    font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)
+    plot_size = st.sidebar.slider("Plot size (px)", 400, 900, 700, 10)  # translated
     st.sidebar.markdown("---")
-    st.sidebar.caption("Farben")
+    st.sidebar.caption("Colors")
     col_ta = st.sidebar.color_picker("Tacted", "#D55E00")
     col_no = st.sidebar.color_picker("Normal", "#7A88C2")
     col_ex = st.sidebar.color_picker("Exponential", "#7CC68E")
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
 
-    # Plot im Hauptbereich
+    # Plot in main area
     if zone and sources:
         fig = build_single_plot(
             df, zone, sources, colors, line_width, ribbon_alpha=0.18,
             observed=observed_df, show_observed=show_observed, font_size=font_size
         )
-        fig.update_layout(width=plot_size, height=plot_size)  # quadratisch setzen
-        st.plotly_chart(fig, use_container_width=False)  # kein auto-stretch
+        fig.update_layout(width=plot_size, height=plot_size)
+        st.plotly_chart(fig, use_container_width=False)
         if not {"low_delta","up_delta"}.issubset(df.columns):
-            st.warning("Delta-Intervalle nicht im Datensatz gefunden – es wird nur die Mittellinie gezeichnet.")
+            st.warning("Delta intervals not found in dataset – only the central line is plotted.")
     else:
-        st.info("Mindestens eine Arrival distribution wählen.")
+        st.info("Select at least one arrival distribution.")
 
 if __name__ == "__main__":
     main()
