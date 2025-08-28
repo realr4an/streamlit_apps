@@ -309,7 +309,7 @@ def main():
     col_ex = st.sidebar.color_picker("Exponential", "#009E73")
     ribbon_alpha = st.sidebar.slider("Ribbon transparency", 0.05, 0.9, 0.18, 0.01)  # translated
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
-    show_obs_points = st.sidebar.checkbox("Show observed mopt points", True)  # translated
+    show_obs_points = st.sidebar.checkbox("Show observed mean order processing time", True)  # label updated
     font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)  # translated
 
     if zones and sources:
