@@ -288,8 +288,8 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.caption("Colors")  # colors now before sliders
     col_ta = st.sidebar.color_picker("Tacted", "#D55E00")
-    col_no = st.sidebar.color_picker("Normal", "#7A88C2")
-    col_ex = st.sidebar.color_picker("Exponential", "#7CC68E")
+    col_no = st.sidebar.color_picker("Normal", "#0072B2")
+    col_ex = st.sidebar.color_picker("Exponential", "#009E73")
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
 
     # Sliders moved below colors
