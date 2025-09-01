@@ -154,7 +154,7 @@ def build_single_plot(
     font_size: int = 18,
 ) -> go.Figure:
     xcol = "systemload"  # kodiert –1…+1
-    xtitle = "Coded source parameter"
+    xtitle = "Mean arrival time (sec)"
 
     d = df[df["zoning"] == zone]
     if d.empty:
@@ -239,7 +239,7 @@ def build_single_plot(
         height=700, width=700,
         margin=dict(l=40, r=20, t=20, b=40),
         legend=dict(
-            title=dict(text="Source", font=dict(size=font_size-2, color="#000000")),
+            title=dict(text="Arrival pattern", font=dict(size=font_size-2, color="#000000")),
             font=dict(size=font_size-2, color="#000000")
         ),
         font=dict(size=font_size, color="#000000")

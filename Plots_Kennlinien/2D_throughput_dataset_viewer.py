@@ -138,7 +138,7 @@ def build_facets(df: pd.DataFrame,
 
     # Immer kodierte X-Achse –1…+1
     x_col   = "systemload"
-    x_title = "Coded Source parameter"
+    x_title = "Mean arrival time (sec)"
 
     sub = df[df["zoning"].isin(zones) & df["Source"].isin(sources)].copy()
     has_delta = {"low_delta", "up_delta"}.issubset(sub.columns)
@@ -229,7 +229,7 @@ def build_facets(df: pd.DataFrame,
 
         # Y-Achse: fest 100–225 mit 25er Schritten
         fig.update_yaxes(
-            title_text="Mean order processing time",
+            title_text="Mean order processing time (sec)",
             range=fixed_y_range, autorange=False,
             tickmode="array", tickvals=fixed_y_ticks,
             row=r, col=c,
@@ -260,7 +260,7 @@ def build_facets(df: pd.DataFrame,
         margin=dict(l=10, r=10, t=60, b=10),
         legend=dict(
             orientation="v",
-            title=dict(text="Source", font=dict(size=font_size-2, color="#000000")),
+            title=dict(text="Arrival pattern", font=dict(size=font_size-2, color="#000000")),
             x=1.02, xanchor="left", y=1, yanchor="top",
             font=dict(size=font_size-2, color="#000000"),
             bgcolor="rgba(255,255,255,0.0)",
