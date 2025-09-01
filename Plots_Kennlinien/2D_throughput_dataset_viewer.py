@@ -18,9 +18,9 @@ SOURCE_ORDER = ["TA","NO","EX"]
 OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 
 def _find_data_file() -> Path:
-    cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30 4.xlsx"))
+    cands = sorted(BASE_DIR.glob("data.mopt.2d_10_30 5.xlsx"))
     if not cands:
-        raise FileNotFoundError("Keine Datei data.mopt.2d*.xlsx im Skriptordner gefunden.")
+        raise FileNotFoundError("No data.mopt.2d*.xlsx file found in script directory.")
     return cands[0]
 
 def _rgba(hex_color: str, alpha: float) -> str:
@@ -129,9 +129,10 @@ def build_facets(df: pd.DataFrame,
                  sources: list[str],
                  y_lock: bool,
                  y_zero: bool,
-                 y_top_pad: float,
                  colors: dict[str, str],
                  ribbon_alpha: float,
+                 line_width: int,            # added
+                 plot_size: int,             # added (for layout sizing)
                  observed: pd.DataFrame | None = None,
                  show_obs_points: bool = False,
                  font_size: int = 18) -> go.Figure:
@@ -195,7 +196,7 @@ def build_facets(df: pd.DataFrame,
             if not d.empty:
                 fig.add_trace(
                     go.Scatter(x=d[x_col], y=d["prediction"], mode="lines",
-                               line=dict(color=colors.get(src, "#444444"), width=2),
+                               line=dict(color=colors.get(src, "#444444"), width=line_width),  # use dynamic width
                                name=SOURCE_MAP.get(src, src),
                                legendgroup=src, showlegend=(idx == 0), legendrank=10 + sources_ordered.index(src)),
                     row=r, col=c
@@ -213,15 +214,17 @@ def build_facets(df: pd.DataFrame,
                             name="Observed mopt (colored)",
                             legendgroup="obs_mopt",
                             showlegend=False,
-                            hovertemplate="Observed mopt<br>Systemload: %{x}<br>mopt: %{y}<extra></extra>",
+                            hovertemplate="Observed mopt<br>Mean arrival time: %{x}<br>mopt: %{y}<extra></extra>",  # translated
                         ),
                         row=r, col=c
                     )
 
-        # X-Achse fix –1…+1
+        # X-Achse fix –1…+1, Labels 10,15,20,25,30
         fig.update_xaxes(
             title_text=x_title, range=[-1, 1], autorange=False,
-            tickmode="array", tickvals=[-1, -0.5, 0, 0.5, 1],
+            tickmode="array",
+            tickvals=[-1, -0.5, 0, 0.5, 1],
+            ticktext=["10", "15", "20", "25", "30"],
             zeroline=False, row=r, col=c,
             title_font=dict(size=font_size, color="#000000"),
             tickfont=dict(size=font_size-2, color="#000000")
@@ -254,8 +257,8 @@ def build_facets(df: pd.DataFrame,
         )
 
     fig.update_layout(
-        height=800, width=1000,  # etwas breiter für rechts platzierte Legende
-        title={"text": "Mean order processing time — Delta-Prognoseintervalle", "font": {"size": font_size+4, "color": "#000000"}},
+        height=plot_size, width=plot_size,  # dynamic size
+        # Titel entfernt auf Wunsch
         font=dict(size=font_size, color="#000000"),
         margin=dict(l=10, r=10, t=60, b=10),
         legend=dict(
@@ -275,55 +278,57 @@ def build_facets(df: pd.DataFrame,
     return fig
 
 def main():
-    st.set_page_config(page_title="2-D-Kennlinien (Delta)", layout="wide")
-    st.title("2-D-Kennlinien mit Delta-Prognoseintervallen")
+    st.set_page_config(page_title="2-D curves (Delta)", layout="wide")  # translated
+    st.title("LOC of mean order processing time")
 
     path = _find_data_file()
     df = load_data(path)
     observed_df = load_observed(OBS_DATA_FILE)
 
-    st.sidebar.header("Anzeige")
+    st.sidebar.header("Display")
     zone_options = ["BU","TD","RA","SQ"]
     zones = st.sidebar.multiselect(
-        "Zoning", options=zone_options, default=zone_options,
+        "Assignment strategy", options=zone_options, default=zone_options,  # renamed
         format_func=lambda z: ZONE_MAP.get(z, z),
     )
 
     sources_in_data = df["Source"].dropna().unique().tolist()
     source_options = _order_sources(sources_in_data)
     sources = st.sidebar.multiselect(
-        "Source", options=source_options, default=source_options,
+        "Arrival distribution",
+        options=source_options, default=source_options,
         format_func=lambda s: SOURCE_MAP.get(s, s),
     )
 
-    y_lock = st.sidebar.checkbox("Einheitlicher y-Bereich über Panels", True)
-    y_zero = st.sidebar.checkbox("Y-Achse bei 0 beginnen lassen", False)
-    y_top_pad = st.sidebar.number_input("Puffer oben (+)", min_value=0.0, value=20.0, step=1.0, format="%.0f")
+    y_lock = st.sidebar.checkbox("Uniform y-range across panels", True)
+    y_zero = st.sidebar.checkbox("Force y-axis start at 0", False)
+    show_obs_points = st.sidebar.checkbox("Show observed mean order processing time", True)  # moved up
 
     st.sidebar.markdown("---")
-    st.sidebar.caption("Farben")
+    st.sidebar.caption("Colors")
     col_ta = st.sidebar.color_picker("Tacted", "#D55E00")
     col_no = st.sidebar.color_picker("Normal", "#0072B2")
     col_ex = st.sidebar.color_picker("Exponential", "#009E73")
-    ribbon_alpha = st.sidebar.slider("Ribbon-Transparenz", 0.05, 0.9, 0.18, 0.01)
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
-    show_obs_points = st.sidebar.checkbox("Beobachtete mopt-Punkte anzeigen", True)
-    font_size = st.sidebar.slider("Grund-Schriftgröße", 10, 40, 20, 1)
+    line_width = st.sidebar.slider("Line width", 1, 6, 2, 1)              # moved up
+    font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)        # moved up
+    plot_size = st.sidebar.slider("Plot size (px)", 600, 1400, 1000, 50)  # moved up
+    ribbon_alpha = st.sidebar.slider("Ribbon transparency", 0.05, 0.9, 0.18, 0.01)  # moved down
 
     if zones and sources:
         fig = build_facets(
-            df, zones, sources, y_lock, y_zero, y_top_pad, colors, ribbon_alpha,
+            df, zones, sources, y_lock, y_zero, colors, ribbon_alpha,
+            line_width, plot_size,
             observed=observed_df, show_obs_points=show_obs_points, font_size=font_size
         )
-        # WICHTIG: key abhängig vom Puffer (und y_lock/y_zero), damit Streamlit neu zeichnet
         st.plotly_chart(
             fig, use_container_width=False,
-            key=f"facets-{y_lock}-{y_zero}-{y_top_pad}"
+            key=f"facets-{y_lock}-{y_zero}-{line_width}-{plot_size}"
         )
         if not {"low_delta","up_delta"}.issubset(df.columns):
-            st.warning("Delta-Intervalle nicht im Datensatz gefunden – es wird nur die Mittellinie gezeichnet.")
+            st.warning("Delta intervals not found in dataset – only the central line is drawn.")
     else:
-        st.info("Bitte mindestens eine Zoning-Strategie und eine Quelle wählen.")
+        st.info("Please select at least one assignment strategy and one arrival distribution.")  # updated wording
 
 if __name__ == "__main__":
     main()
