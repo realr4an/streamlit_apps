@@ -165,14 +165,46 @@ def build_facets(df: pd.DataFrame,
         rows=2,
         cols=2,
         subplot_titles=titles,
-        horizontal_spacing=0.22,
-        vertical_spacing=0.18,
+        # Increase spacing between subplots for more breathing room
+        horizontal_spacing=0.28,
+        vertical_spacing=0.22,
     )
     cells = [(1,1),(1,2),(2,1),(2,2)]
 
     sources_ordered = _order_sources(sources)
 
     # Placeholder für Observed Mopt wird nach allen Linien (am Ende) hinzugefügt, damit er in der Legende zuletzt steht
+
+    # Helper: extend a line (and ribbons) to axis limits so the curve reaches the frame edges
+    def _extend_to_limits(x: np.ndarray, y: np.ndarray, left: float, right: float) -> tuple[np.ndarray, np.ndarray]:
+        if len(x) == 0:
+            return x, y
+        x_sorted_idx = np.argsort(x)
+        x = x[x_sorted_idx]
+        y = y[x_sorted_idx]
+        # Left extrapolation
+        if x[0] > left:
+            if len(x) >= 2:
+                # linear extrapolation using first two points
+                slope = (y[1] - y[0]) / (x[1] - x[0]) if (x[1] - x[0]) != 0 else 0.0
+                y_left = y[0] + slope * (left - x[0])
+            else:
+                y_left = y[0]
+            x = np.insert(x, 0, left)
+            y = np.insert(y, 0, y_left)
+        # Right extrapolation
+        if x[-1] < right:
+            if len(x) >= 2:
+                slope = (y[-1] - y[-2]) / (x[-1] - x[-2]) if (x[-1] - x[-2]) != 0 else 0.0
+                y_right = y[-1] + slope * (right - x[-1])
+            else:
+                y_right = y[-1]
+            x = np.append(x, right)
+            y = np.append(y, y_right)
+        return x, y
+
+    # Wider margins on left/right; keep ticks at -1..1 but extend frame so points aren't cramped
+    x_left, x_right = -1.1, 1.1
 
     for idx, z in enumerate(zones):
         r, c = cells[idx]
@@ -185,14 +217,17 @@ def build_facets(df: pd.DataFrame,
                 continue
 
             if not d.empty and has_delta:
+                # Extend ribbons to the plot edges
+                x_low, y_low = _extend_to_limits(d[x_col].to_numpy(dtype=float), d["low_delta"].to_numpy(dtype=float), x_left, x_right)
+                x_up,  y_up  = _extend_to_limits(d[x_col].to_numpy(dtype=float), d["up_delta"].to_numpy(dtype=float),  x_left, x_right)
                 fig.add_trace(
-                    go.Scatter(x=d[x_col], y=d["low_delta"], mode="lines",
+                    go.Scatter(x=x_low, y=y_low, mode="lines",
                                line=dict(width=0), hoverinfo="skip",
                                showlegend=False, legendgroup=src),
                     row=r, col=c
                 )
                 fig.add_trace(
-                    go.Scatter(x=d[x_col], y=d["up_delta"], mode="lines",
+                    go.Scatter(x=x_up, y=y_up, mode="lines",
                                line=dict(width=0), fill="tonexty",
                                fillcolor=_rgba(colors.get(src, "#888888"), ribbon_alpha),
                                hoverinfo="skip", showlegend=False, legendgroup=src),
@@ -200,8 +235,10 @@ def build_facets(df: pd.DataFrame,
                 )
 
             if not d.empty:
+                # Extend central curve to the plot edges
+                x_pred, y_pred = _extend_to_limits(d[x_col].to_numpy(dtype=float), d["prediction"].to_numpy(dtype=float), x_left, x_right)
                 fig.add_trace(
-                    go.Scatter(x=d[x_col], y=d["prediction"], mode="lines",
+                    go.Scatter(x=x_pred, y=y_pred, mode="lines",
                                line=dict(color=colors.get(src, "#444444"), width=line_width),  # use dynamic width
                                name=SOURCE_MAP.get(src, src),
                                legendgroup=src, showlegend=(idx == 0), legendrank=10 + sources_ordered.index(src)),
@@ -225,10 +262,10 @@ def build_facets(df: pd.DataFrame,
                         row=r, col=c
                     )
 
-        # X-Achse fix –1…+1, Labels 10,15,20,25,30
+        # X-Achse fix –1…+1, Labels 10,15,20,25,30; extend frame to add space left/right
         fig.update_xaxes(
             title_text=x_title,
-            range=[-1.05, 1.05],
+            range=[x_left, x_right],
             autorange=False,
             tickmode="array",
             tickvals=[-1, -0.5, 0, 0.5, 1],
@@ -270,7 +307,8 @@ def build_facets(df: pd.DataFrame,
         height=plot_size, width=plot_size,  # dynamic size
         # Titel entfernt auf Wunsch
         font=dict(size=font_size, color="#000000"),
-        margin=dict(l=10, r=10, t=60, b=10),
+        # Slightly tighter outer margins; internal spacing increased above
+        margin=dict(l=6, r=6, t=60, b=6),
         legend=dict(
             orientation="v",
             title=dict(text="Arrival pattern", font=dict(size=font_size-2, color="#000000")),
