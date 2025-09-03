@@ -20,7 +20,7 @@ ZONE_MAP = {
     "RA": "Random",
     "SQ": "Shortest Queue",
 }
-SOURCE_MAP = {"TA": "Tacted", "NO": "Normal", "EX": "Exponential"}
+SOURCE_MAP = {"TA": "Fixed", "NO": "Normal", "EX": "Exponential"}
 
 # Optional normalization for typos/variants
 ZONING_NORMALIZE = {
@@ -244,14 +244,16 @@ def build_single_plot(
         tickfont=dict(size=font_size-2, color="#000000")
     )
     fig.update_yaxes(
-        title_text="Throughput",
-        range=[0, 15000], autorange=False,
-        tickmode="array", tickvals=[0, 5000, 10000, 15000],
+        title_text="Throughput (pieces)",
+        range=[0, 15000],
+        autorange=False,
+        tickmode="array",
+        tickvals=[0, 5000, 10000, 15000],
         tickformat=".0f",
         showexponent="none",
         zeroline=False,
         title_font=dict(size=font_size, color="#000000"),
-        tickfont=dict(size=font_size-2, color="#000000")
+        tickfont=dict(size=font_size-2, color="#000000"),
     )
     return fig
 
@@ -287,7 +289,7 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Colors")  # colors now before sliders
-    col_ta = st.sidebar.color_picker("Tacted", "#D55E00")
+    col_ta = st.sidebar.color_picker("Fixed", "#D55E00")
     col_no = st.sidebar.color_picker("Normal", "#0072B2")
     col_ex = st.sidebar.color_picker("Exponential", "#009E73")
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
