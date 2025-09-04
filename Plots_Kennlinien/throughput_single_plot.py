@@ -9,6 +9,9 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 
+# Base directory of this script (needed for file lookups)
+BASE_DIR = Path(__file__).resolve().parent
+
 # Path to the observation file
 OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 
