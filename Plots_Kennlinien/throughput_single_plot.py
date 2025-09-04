@@ -8,7 +8,7 @@ import warnings
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
-piece
+
 # Path to the observation file
 OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 
