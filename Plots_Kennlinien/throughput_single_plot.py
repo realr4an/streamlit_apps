@@ -8,8 +8,7 @@ import warnings
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
-
-BASE_DIR = Path(__file__).resolve().parent
+piece
 # Path to the observation file
 OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 
@@ -244,7 +243,7 @@ def build_single_plot(
         tickfont=dict(size=font_size-2, color="#000000")
     )
     fig.update_yaxes(
-        title_text="Throughput (pieces)",
+        title_text="Throughput (piece)",
         range=[0, 15000],
         autorange=False,
         tickmode="array",
