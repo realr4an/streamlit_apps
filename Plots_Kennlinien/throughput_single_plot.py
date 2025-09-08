@@ -238,8 +238,11 @@ def build_single_plot(
         font=dict(size=font_size, color="#000000")
     )
     fig.update_xaxes(
-        title_text=xtitle, range=[-1, 1],
-        tickmode="array", tickvals=[-1, -0.5, 0, 0.5, 1],
+        title_text=xtitle,
+        range=[-1.05, 1.05],
+        autorange=False,
+        tickmode="array",
+        tickvals=[-1, -0.5, 0, 0.5, 1],
         ticktext=["10", "15", "20", "25", "30"],  # new labels
         zeroline=False,
         title_font=dict(size=font_size, color="#000000"),
