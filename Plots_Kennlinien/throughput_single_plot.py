@@ -8,6 +8,7 @@ import warnings
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
+import numpy as np
 
 # Base directory of this script (needed for file lookups)
 BASE_DIR = Path(__file__).resolve().parent
@@ -166,6 +167,33 @@ def build_single_plot(
     if show_observed and observed is not None and not observed.empty:
         obs = observed[(observed["zoning"] == zone) & (observed["source"].isin(sources))].copy()
 
+    # Helper: extend line endpoints to axis limits so the curve reaches the frame border
+    def _extend_to_limits(x: np.ndarray, y: np.ndarray, left: float, right: float) -> tuple[np.ndarray, np.ndarray]:
+        if len(x) == 0:
+            return x, y
+        order = np.argsort(x)
+        x = np.asarray(x, dtype=float)[order]
+        y = np.asarray(y, dtype=float)[order]
+        # Left side
+        if x[0] > left:
+            if len(x) >= 2 and (x[1] - x[0]) != 0:
+                slope = (y[1] - y[0]) / (x[1] - x[0])
+            else:
+                slope = 0.0
+            y_left = y[0] + slope * (left - x[0])
+            x = np.insert(x, 0, left)
+            y = np.insert(y, 0, y_left)
+        # Right side
+        if x[-1] < right:
+            if len(x) >= 2 and (x[-1] - x[-2]) != 0:
+                slope = (y[-1] - y[-2]) / (x[-1] - x[-2])
+            else:
+                slope = 0.0
+            y_right = y[-1] + slope * (right - x[-1])
+            x = np.append(x, right)
+            y = np.append(y, y_right)
+        return x, y
+
     fig = go.Figure()
     # --- Forecast lines + intervals ---
     for src in order:
@@ -174,20 +202,27 @@ def build_single_plot(
             continue
 
         if has_delta and not s[["low_delta","up_delta"]].isna().all().all():
+            # Extend ribbons to the axis limits
+            x_left, x_right = -1.1, 1.1
+            x_low, y_low = _extend_to_limits(s[xcol].to_numpy(), s["low_delta"].to_numpy(), x_left, x_right)
+            x_up,  y_up  = _extend_to_limits(s[xcol].to_numpy(), s["up_delta"].to_numpy(),  x_left, x_right)
             fig.add_trace(go.Scatter(
-                x=s[xcol], y=s["low_delta"], mode="lines",
+                x=x_low, y=y_low, mode="lines",
                 line=dict(width=0), hoverinfo="skip",
                 showlegend=False, legendgroup=src
             ))
             fig.add_trace(go.Scatter(
-                x=s[xcol], y=s["up_delta"], mode="lines",
+                x=x_up, y=y_up, mode="lines",
                 line=dict(width=0), fill="tonexty",
                 fillcolor=_rgba(colors.get(src, "#888888"), ribbon_alpha),
                 hoverinfo="skip", showlegend=False, legendgroup=src
             ))
 
+        # Extend central prediction to axis limits
+        x_left, x_right = -1.1, 1.1
+        x_pred, y_pred = _extend_to_limits(s[xcol].to_numpy(), s["prediction"].to_numpy(), x_left, x_right)
         fig.add_trace(go.Scatter(
-            x=s[xcol], y=s["prediction"], mode="lines",
+            x=x_pred, y=y_pred, mode="lines",
             name=SOURCE_MAP.get(src, src),
             line=dict(color=colors.get(src, None), width=line_width),
             legendgroup=src
@@ -230,7 +265,8 @@ def build_single_plot(
 
     fig.update_layout(
         height=700, width=700,
-        margin=dict(l=40, r=20, t=20, b=40),
+        # a touch more outer padding
+        margin=dict(l=54, r=40, t=28, b=50),
         legend=dict(
             title=dict(text="Arrival pattern", font=dict(size=font_size-2, color="#000000")),
             font=dict(size=font_size-2, color="#000000")
@@ -239,7 +275,8 @@ def build_single_plot(
     )
     fig.update_xaxes(
         title_text=xtitle,
-        range=[-1.05, 1.05],
+        # Match extended line ends so curves reach the frame
+        range=[-1.1, 1.1],
         autorange=False,
         tickmode="array",
         tickvals=[-1, -0.5, 0, 0.5, 1],
