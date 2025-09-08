@@ -12,7 +12,7 @@ from plotly.subplots import make_subplots
 BASE_DIR = Path(__file__).resolve().parent
 
 ZONE_MAP = {"BU": "Bottom-up","TD": "Top-down","RA": "Random","SQ": "Shortest queue"}
-SOURCE_MAP = {"TA": "Tacted","NO": "Normal","EX": "Exponential"}
+SOURCE_MAP = {"TA": "Fixed","NO": "Normal","EX": "Exponential"}
 SOURCE_ORDER = ["TA","NO","EX"]
 # Datei mit beobachteten Rohwerten (mopt)
 OBS_DATA_FILE = BASE_DIR / "data.xlsx"
@@ -161,7 +161,13 @@ def build_facets(df: pd.DataFrame,
     titles = [ZONE_MAP.get(z, z) for z in zones]
     while len(titles) < 4:
         titles.append("")
-    fig = make_subplots(rows=2, cols=2, subplot_titles=titles, horizontal_spacing=0.2)
+    fig = make_subplots(
+        rows=2,
+        cols=2,
+        subplot_titles=titles,
+        horizontal_spacing=0.22,
+        vertical_spacing=0.18,
+    )
     cells = [(1,1),(1,2),(2,1),(2,2)]
 
     sources_ordered = _order_sources(sources)
@@ -257,13 +263,17 @@ def build_facets(df: pd.DataFrame,
 
         # X-Achse fix –1…+1, Labels 10,15,20,25,30; extend frame to add space left/right
         fig.update_xaxes(
-            title_text=x_title, range=[-1, 1], autorange=False,
+            title_text=x_title,
+            range=[-1.05, 1.05],
+            autorange=False,
             tickmode="array",
             tickvals=[-1, -0.5, 0, 0.5, 1],
             ticktext=["10", "15", "20", "25", "30"],
-            zeroline=False, row=r, col=c,
+            zeroline=False,
+            row=r,
+            col=c,
             title_font=dict(size=font_size, color="#000000"),
-            tickfont=dict(size=font_size-2, color="#000000")
+            tickfont=dict(size=font_size-2, color="#000000"),
         )
 
         # Y-Achse: fest 100–225 mit 25er Schritten
@@ -343,7 +353,7 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Colors")
-    col_ta = st.sidebar.color_picker("Tacted", "#D55E00")
+    col_ta = st.sidebar.color_picker("Fixed", "#D55E00")
     col_no = st.sidebar.color_picker("Normal", "#0072B2")
     col_ex = st.sidebar.color_picker("Exponential", "#009E73")
     colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
