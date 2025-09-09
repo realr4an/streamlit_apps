@@ -387,7 +387,12 @@ def main():
     # Sidebar control (instead of central UI)
     st.sidebar.header("Display")
 
-    sources_all = sorted(df["source"].dropna().unique().tolist())
+    # Offer sources present in either predictions or observations
+    sources_all = sorted(set(
+        df.get("source", pd.Series(dtype=str)).dropna().unique().tolist()
+    ) | set(
+        observed_df.get("source", pd.Series(dtype=str)).dropna().unique().tolist()
+    ))
     default_sources = [s for s in ["FIX","NO","EXP"] if s in sources_all] or sources_all
     sources = st.sidebar.multiselect(
         "Arrival pattern", options=sources_all, default=default_sources,
