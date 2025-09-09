@@ -33,6 +33,7 @@ def _resolve_xcol(df: pd.DataFrame) -> str:
     candidates = [
         "systemload",
         "coded_sourceparameter",
+        "coded_meanarrivaltime",
         "coded_mean_arrival_time",
         "coded_mean_interarrival_time",
         "coded_mean_interarrival",
@@ -62,6 +63,7 @@ def load_data(path: Path) -> pd.DataFrame:
         "systemload": "systemload",
         "coded_sourceparameter": "systemload",
         # new dataset variants for coded mean arrival time
+        "coded_meanarrivaltime": "systemload",
         "coded_mean_arrival_time": "systemload",
         "coded_mean_interarrival_time": "systemload",
         "coded_mean_interarrival": "systemload",
@@ -103,6 +105,7 @@ def load_observed(path: Path) -> pd.DataFrame:
     df = pd.read_excel(path)
     rename_map = {
         "coded_sourceparameter": "systemload",
+        "coded_meanarrivaltime": "systemload",
         "coded_mean_arrival_time": "systemload",
         "coded_mean_interarrival_time": "systemload",
         "coded_mean_interarrival": "systemload",
