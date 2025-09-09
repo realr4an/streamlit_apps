@@ -12,8 +12,8 @@ from plotly.subplots import make_subplots
 BASE_DIR = Path(__file__).resolve().parent
 
 ZONE_MAP = {"BU": "Bottom-up","TD": "Top-down","RA": "Random","SQ": "Shortest queue"}
-SOURCE_MAP = {"TA": "Fixed","NO": "Normal","EX": "Exponential"}
-SOURCE_ORDER = ["TA","NO","EX"]
+SOURCE_MAP = {"FIX": "Fixed","NO": "Normal","EXP": "Exponential"}
+SOURCE_ORDER = ["FIX","NO","EXP"]
 # Datei mit beobachteten Rohwerten (mopt)
 OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 
@@ -39,6 +39,8 @@ def load_data(path: Path) -> pd.DataFrame:
         "coded_sourceparameter": "systemload",
         "traycontrol": "zoning",
         "distributionstrategy": "zoning",
+        "assignment_strategy": "zoning",
+        "arrival_pattern": "Source",
         "prediction": "prediction",
         "predicted_throughput": "prediction",
         "predicted_mopt": "prediction",
@@ -74,6 +76,8 @@ def load_observed(path: Path) -> pd.DataFrame:
     rename_map = {
         "coded_sourceparameter": "systemload",
         "distributionstrategy": "zoning",
+        "assignment_strategy": "zoning",
+        "arrival_pattern": "Source",
         "distributinstrategy": "zoning",  # Tippfehler-Variante
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
@@ -342,7 +346,7 @@ def main():
     sources_in_data = df["Source"].dropna().unique().tolist()
     source_options = _order_sources(sources_in_data)
     sources = st.sidebar.multiselect(
-        "Arrival distribution",
+        "Arrival pattern",
         options=source_options, default=source_options,
         format_func=lambda s: SOURCE_MAP.get(s, s),
     )
@@ -353,10 +357,10 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Colors")
-    col_ta = st.sidebar.color_picker("Fixed", "#D55E00")
+    col_fix = st.sidebar.color_picker("Fixed", "#D55E00")
     col_no = st.sidebar.color_picker("Normal", "#0072B2")
-    col_ex = st.sidebar.color_picker("Exponential", "#009E73")
-    colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
+    col_exp = st.sidebar.color_picker("Exponential", "#009E73")
+    colors = {"FIX": col_fix, "NO": col_no, "EXP": col_exp}
     line_width = st.sidebar.slider("Line width", 1, 6, 2, 1)              # moved up
     font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)        # moved up
     plot_size = st.sidebar.slider("Plot size (px)", 600, 1400, 1000, 50)  # moved up
@@ -375,7 +379,7 @@ def main():
         if not {"low_delta","up_delta"}.issubset(df.columns):
             st.warning("Delta intervals not found in dataset – only the central line is drawn.")
     else:
-        st.info("Please select at least one assignment strategy and one arrival distribution.")  # updated wording
+        st.info("Please select at least one assignment strategy and one arrival pattern.")
 
 if __name__ == "__main__":
     main()

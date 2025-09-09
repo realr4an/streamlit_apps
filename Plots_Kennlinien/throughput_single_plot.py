@@ -23,7 +23,7 @@ ZONE_MAP = {
     "RA": "Random",
     "SQ": "Shortest Queue",
 }
-SOURCE_MAP = {"TA": "Fixed", "NO": "Normal", "EX": "Exponential"}
+SOURCE_MAP = {"FIX": "Fixed", "NO": "Normal", "EXP": "Exponential"}
 
 # Optional normalization for typos/variants
 ZONING_NORMALIZE = {
@@ -59,6 +59,9 @@ def load_data(path: Path) -> pd.DataFrame:
         # Facet
         "traycontrol": "zoning",
         "distributionstrategy": "zoning",
+        "assignment_strategy": "zoning",
+        # arrival pattern/source codes
+        "arrival_pattern": "source",
         # y
         "prediction": "prediction",
         "predicted_throughput": "prediction",
@@ -104,6 +107,8 @@ def load_observed(path: Path) -> pd.DataFrame:
     rename_map = {
         "coded_sourceparameter": "systemload",
         "distributionstrategy": "zoning",
+        "assignment_strategy": "zoning",
+        "arrival_pattern": "source",
         "distributinstrategy": "zoning",  # Variant according to specification
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
@@ -160,7 +165,7 @@ def build_single_plot(
     if d.empty:
         st.warning(f"No data for zoning '{zone}'. Available: {sorted(df['zoning'].unique().tolist())}")
 
-    order = [s for s in ["TA", "NO", "EX"] if s in sources] + [s for s in sources if s not in ["TA","NO","EX"]]
+    order = [s for s in ["FIX", "NO", "EXP"] if s in sources] + [s for s in sources if s not in ["FIX","NO","EXP"]]
     has_delta = {"low_delta", "up_delta"}.issubset(df.columns)
 
     obs = pd.DataFrame()
@@ -321,9 +326,9 @@ def main():
     st.sidebar.header("Display")
 
     sources_all = sorted(df["source"].dropna().unique().tolist())
-    default_sources = [s for s in ["TA","NO","EX"] if s in sources_all] or sources_all
+    default_sources = [s for s in ["FIX","NO","EXP"] if s in sources_all] or sources_all
     sources = st.sidebar.multiselect(
-        "Arrival distribution", options=sources_all, default=default_sources,
+        "Arrival pattern", options=sources_all, default=default_sources,
         format_func=lambda s: SOURCE_MAP.get(s, s),
         key="sources_select"
     )
@@ -331,10 +336,10 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Colors")  # colors now before sliders
-    col_ta = st.sidebar.color_picker("Fixed", "#D55E00")
+    col_fix = st.sidebar.color_picker("Fixed", "#D55E00")
     col_no = st.sidebar.color_picker("Normal", "#0072B2")
-    col_ex = st.sidebar.color_picker("Exponential", "#009E73")
-    colors = {"TA": col_ta, "NO": col_no, "EX": col_ex}
+    col_exp = st.sidebar.color_picker("Exponential", "#009E73")
+    colors = {"FIX": col_fix, "NO": col_no, "EXP": col_exp}
 
     # Sliders moved below colors
     line_width = st.sidebar.slider("Line width", 1, 6, 3, 1)
@@ -353,7 +358,7 @@ def main():
         if not {"low_delta","up_delta"}.issubset(df.columns):
             st.warning("Delta intervals not found in dataset – only the central line is plotted.")
     else:
-        st.info("Select at least one arrival distribution.")
+        st.info("Select at least one arrival pattern.")
 
 if __name__ == "__main__":
     main()
