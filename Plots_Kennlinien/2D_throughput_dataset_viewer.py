@@ -17,6 +17,7 @@ SOURCE_ORDER = ["FIX","NO","EXP"]
 SOURCE_NORMALIZE = {
     "FIXED": "FIX",
     "FIX": "FIX",
+    "TA": "FIX",
     "EX": "EXP",
     "EXP": "EXP",
     "EXPONENTIAL": "EXP",

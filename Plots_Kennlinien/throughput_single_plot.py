@@ -27,13 +27,29 @@ SOURCE_MAP = {"FIX": "Fixed", "NO": "Normal", "EXP": "Exponential"}
 SOURCE_NORMALIZE = {
     "FIXED": "FIX",
     "FIX": "FIX",
+    "TA": "FIX",
     "EX": "EXP",
     "EXP": "EXP",
     "EXPONENTIAL": "EXP",
+    "EXPO": "EXP",
+    "EXP.": "EXP",
     "NORMAL": "NO",
     "NORM": "NO",
     "NO": "NO",
 }
+
+def _normalize_source_value(val: str) -> str:
+    s = str(val).upper().strip()
+    s = SOURCE_NORMALIZE.get(s, s)
+    if s.startswith("FIX"):
+        return "FIX"
+    if s == "TA":
+        return "FIX"
+    if s.startswith("EX") or s.startswith("EXP"):
+        return "EXP"
+    if s.startswith("NO") or s.startswith("NOR"):
+        return "NO"
+    return s
 
 # Optional normalization for typos/variants
 ZONING_NORMALIZE = {
@@ -133,8 +149,8 @@ def load_data(path: Path) -> pd.DataFrame:
         z = df["zoning"].astype(str).str.upper().str.strip()
         df["zoning"] = z.replace(ZONING_NORMALIZE)
     if "source" in df.columns:
-        s = df["source"].astype(str).str.upper().str.strip()
-        df["source"] = s.replace(SOURCE_NORMALIZE)
+        s = df["source"].apply(_normalize_source_value)
+        df["source"] = s
 
     return df
 
@@ -184,7 +200,7 @@ def load_observed(path: Path) -> pd.DataFrame:
         source_col = df["source"]
         if isinstance(source_col, pd.DataFrame):
             source_col = source_col.iloc[:, 0]
-        df["source"] = source_col.astype(str).str.upper().str.strip().replace(SOURCE_NORMALIZE)
+        df["source"] = source_col.apply(_normalize_source_value)
     return df
 
 def _rgba(hex_color: str, alpha: float) -> str:
