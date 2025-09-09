@@ -28,6 +28,30 @@ def _rgba(hex_color: str, alpha: float) -> str:
     r, g, b = (int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     return f"rgba({r},{g},{b},{alpha})"
 
+# Resolve the coded mean arrival time column present in the dataframe
+def _resolve_xcol(df: pd.DataFrame) -> str:
+    candidates = [
+        "systemload",
+        "coded_sourceparameter",
+        "coded_mean_arrival_time",
+        "coded_mean_interarrival_time",
+        "coded_mean_interarrival",
+        "coded_mean",
+        "coded_arrival_time",
+        "coded_interarrival_time",
+    ]
+    for c in candidates:
+        if c in df.columns:
+            return c
+    # fallback: first numeric column
+    for c in df.columns:
+        try:
+            if pd.api.types.is_numeric_dtype(df[c]):
+                return c
+        except Exception:
+            continue
+    return candidates[0]
+
 @st.cache_data
 def load_data(path: Path) -> pd.DataFrame:
     import warnings
@@ -149,7 +173,7 @@ def build_facets(df: pd.DataFrame,
                  font_size: int = 18) -> go.Figure:
 
     # Immer kodierte X-Achse –1…+1
-    x_col   = "systemload"
+    x_col   = _resolve_xcol(df)
     x_title = "Mean arrival time (sec)"
 
     sub = df[df["zoning"].isin(zones) & df["Source"].isin(sources)].copy()

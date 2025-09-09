@@ -44,6 +44,31 @@ def _find_data_file() -> Path:
             return cands[0]
     raise FileNotFoundError("No matching Excel file found.")
 
+# Robustly resolve the X column used for coded mean arrival time
+def _resolve_xcol(df: pd.DataFrame) -> str:
+    candidates = [
+        "systemload",
+        "coded_sourceparameter",
+        "coded_mean_arrival_time",
+        "coded_mean_interarrival_time",
+        "coded_mean_interarrival",
+        "coded_mean",
+        "coded_arrival_time",
+        "coded_interarrival_time",
+    ]
+    for c in candidates:
+        if c in df.columns:
+            return c
+    # fallback: first numeric column
+    for c in df.columns:
+        try:
+            if pd.api.types.is_numeric_dtype(df[c]):
+                return c
+        except Exception:
+            continue
+    # last resort
+    return candidates[0]
+
 # ----------------------- Load & Prepare ----------------
 @st.cache_data
 def load_data(path: Path) -> pd.DataFrame:
@@ -165,7 +190,7 @@ def build_single_plot(
     show_observed: bool = True,
     font_size: int = 18,
 ) -> go.Figure:
-    xcol = "systemload"  # kodiert –1…+1
+    xcol = _resolve_xcol(df)  # kodiert –1…+1
     xtitle = "Mean arrival time (sec)"
 
     d = df[df["zoning"] == zone]
@@ -248,7 +273,7 @@ def build_single_plot(
                 continue
             fig.add_trace(
                 go.Scatter(
-                    x=src_pts["systemload"],
+                    x=src_pts[xcol] if xcol in src_pts.columns else src_pts.get("systemload", src_pts.iloc[:,0]),
                     y=src_pts["throughput"],
                     mode="markers",
                     marker=dict(
