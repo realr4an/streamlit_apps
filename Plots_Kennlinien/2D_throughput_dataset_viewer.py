@@ -14,6 +14,16 @@ BASE_DIR = Path(__file__).resolve().parent
 ZONE_MAP = {"BU": "Bottom-up","TD": "Top-down","RA": "Random","SQ": "Shortest queue"}
 SOURCE_MAP = {"FIX": "Fixed","NO": "Normal","EXP": "Exponential"}
 SOURCE_ORDER = ["FIX","NO","EXP"]
+SOURCE_NORMALIZE = {
+    "FIXED": "FIX",
+    "FIX": "FIX",
+    "EX": "EXP",
+    "EXP": "EXP",
+    "EXPONENTIAL": "EXP",
+    "NORMAL": "NO",
+    "NORM": "NO",
+    "NO": "NO",
+}
 # Datei mit beobachteten Rohwerten (mopt)
 OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 
@@ -88,7 +98,8 @@ def load_data(path: Path) -> pd.DataFrame:
     if "zoning" in df.columns:
         df["zoning"] = df["zoning"].astype(str).str.upper().str.strip()
     if "Source" in df.columns:
-        df["Source"] = df["Source"].astype(str).str.upper().str.strip()
+        s = df["Source"].astype(str).str.upper().str.strip()
+        df["Source"] = s.replace(SOURCE_NORMALIZE)
     return df
 
 @st.cache_data
@@ -145,7 +156,7 @@ def load_observed(path: Path) -> pd.DataFrame:
         s = df["Source"]
         if isinstance(s, pd.DataFrame):
             s = s.iloc[:, 0]
-        df["Source"] = s.astype(str).str.upper().str.strip()
+        df["Source"] = s.astype(str).str.upper().str.strip().replace(SOURCE_NORMALIZE)
 
     return df
 

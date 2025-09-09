@@ -24,6 +24,16 @@ ZONE_MAP = {
     "SQ": "Shortest Queue",
 }
 SOURCE_MAP = {"FIX": "Fixed", "NO": "Normal", "EXP": "Exponential"}
+SOURCE_NORMALIZE = {
+    "FIXED": "FIX",
+    "FIX": "FIX",
+    "EX": "EXP",
+    "EXP": "EXP",
+    "EXPONENTIAL": "EXP",
+    "NORMAL": "NO",
+    "NORM": "NO",
+    "NO": "NO",
+}
 
 # Optional normalization for typos/variants
 ZONING_NORMALIZE = {
@@ -123,7 +133,8 @@ def load_data(path: Path) -> pd.DataFrame:
         z = df["zoning"].astype(str).str.upper().str.strip()
         df["zoning"] = z.replace(ZONING_NORMALIZE)
     if "source" in df.columns:
-        df["source"] = df["source"].astype(str).str.upper().str.strip()
+        s = df["source"].astype(str).str.upper().str.strip()
+        df["source"] = s.replace(SOURCE_NORMALIZE)
 
     return df
 
@@ -173,7 +184,7 @@ def load_observed(path: Path) -> pd.DataFrame:
         source_col = df["source"]
         if isinstance(source_col, pd.DataFrame):
             source_col = source_col.iloc[:, 0]
-        df["source"] = source_col.astype(str).str.upper().str.strip()
+        df["source"] = source_col.astype(str).str.upper().str.strip().replace(SOURCE_NORMALIZE)
     return df
 
 def _rgba(hex_color: str, alpha: float) -> str:
