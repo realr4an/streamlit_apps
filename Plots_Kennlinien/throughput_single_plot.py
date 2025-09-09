@@ -70,6 +70,19 @@ def _find_data_file() -> Path:
             return cands[0]
     raise FileNotFoundError("No matching Excel file found.")
 
+# Robust numeric coercion that also handles decimal commas
+def _coerce_numeric(series: pd.Series) -> pd.Series:
+    s1 = pd.to_numeric(series, errors="coerce")
+    if s1.notna().any() and s1.isna().sum() == 0:
+        return s1
+    # Try replacing comma decimals; keep digits and minus
+    s2 = pd.to_numeric(series.astype(str).str.replace(" ", "", regex=False)
+                       .str.replace("\u00A0", "", regex=False)
+                       .str.replace(".", "", regex=False)  # remove thousand separator if present
+                       .str.replace(",", ".", regex=False), errors="coerce")
+    # Prefer s1 where valid, otherwise s2
+    return s1.where(s1.notna(), s2)
+
 # Robustly resolve the X column used for coded mean arrival time
 def _resolve_xcol(df: pd.DataFrame) -> str:
     candidates = [
@@ -142,7 +155,7 @@ def load_data(path: Path) -> pd.DataFrame:
     # Ensure numeric types
     for c in ["systemload", "prediction", "low_delta", "up_delta"]:
         if c in df.columns:
-            df[c] = pd.to_numeric(df[c], errors="coerce")
+            df[c] = _coerce_numeric(df[c])
 
     # Normalize categories (Upper/Trim + Mapping BA→BU etc.)
     if "zoning" in df.columns:
@@ -188,7 +201,7 @@ def load_observed(path: Path) -> pd.DataFrame:
 
     for c in ["systemload", "throughput", "mopt"]:
         if c in df.columns:
-            df[c] = pd.to_numeric(df[c], errors="coerce")
+            df[c] = _coerce_numeric(df[c])
 
     if "zoning" in df.columns:
         zoning_col = df["zoning"]

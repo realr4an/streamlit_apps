@@ -39,6 +39,17 @@ def _rgba(hex_color: str, alpha: float) -> str:
     r, g, b = (int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     return f"rgba({r},{g},{b},{alpha})"
 
+# Robust numeric coercion that also handles decimal commas
+def _coerce_numeric(series: pd.Series) -> pd.Series:
+    s1 = pd.to_numeric(series, errors="coerce")
+    if s1.notna().any() and s1.isna().sum() == 0:
+        return s1
+    s2 = pd.to_numeric(series.astype(str).str.replace(" ", "", regex=False)
+                       .str.replace("\u00A0", "", regex=False)
+                       .str.replace(".", "", regex=False)  # remove thousand separator if present
+                       .str.replace(",", ".", regex=False), errors="coerce")
+    return s1.where(s1.notna(), s2)
+
 # Resolve the coded mean arrival time column present in the dataframe
 def _resolve_xcol(df: pd.DataFrame) -> str:
     candidates = [
@@ -95,7 +106,7 @@ def load_data(path: Path) -> pd.DataFrame:
         df["Source"] = "ALL"
     for col in ["systemload","prediction","low_delta","up_delta"]:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+            df[col] = _coerce_numeric(df[col])
     if "zoning" in df.columns:
         df["zoning"] = df["zoning"].astype(str).str.upper().str.strip()
     if "Source" in df.columns:
@@ -146,7 +157,7 @@ def load_observed(path: Path) -> pd.DataFrame:
 
     for c in ["systemload", "mopt"]:
         if c in df.columns:
-            df[c] = pd.to_numeric(df[c], errors="coerce")
+            df[c] = _coerce_numeric(df[c])
 
     if "zoning" in df.columns:
         z = df["zoning"]
