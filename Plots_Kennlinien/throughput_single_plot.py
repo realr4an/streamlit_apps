@@ -56,6 +56,10 @@ def load_data(path: Path) -> pd.DataFrame:
         # X
         "systemload": "systemload",
         "coded_sourceparameter": "systemload",
+        # new dataset variants for coded mean arrival time
+        "coded_mean_arrival_time": "systemload",
+        "coded_mean_interarrival_time": "systemload",
+        "coded_mean_interarrival": "systemload",
         # Facet
         "traycontrol": "zoning",
         "distributionstrategy": "zoning",
@@ -106,6 +110,9 @@ def load_observed(path: Path) -> pd.DataFrame:
     df = pd.read_excel(path)
     rename_map = {
         "coded_sourceparameter": "systemload",
+        "coded_mean_arrival_time": "systemload",
+        "coded_mean_interarrival_time": "systemload",
+        "coded_mean_interarrival": "systemload",
         "distributionstrategy": "zoning",
         "assignment_strategy": "zoning",
         "arrival_pattern": "source",
