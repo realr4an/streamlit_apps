@@ -1,6 +1,6 @@
 # ------------------------------------------------------------
 # throughput_single_plot_app.py
-# 2D-Plot (encoded system load –1…+1) with delta intervals (if available)
+# 2D-Plot (encoded system load –1…+1) with selectable prediction intervals
 # tuned for: data.throughput.2d_10_30 4.xlsx
 # ------------------------------------------------------------
 from pathlib import Path
@@ -136,9 +136,11 @@ def load_data(path: Path) -> pd.DataFrame:
         "prediction": "prediction",
         "predicted_throughput": "prediction",
         "predicted_mopt": "prediction",
-        # Intervals (Delta)
+        # Intervals (asymptotic / finite-sample corrected)
         "low.delta": "low_delta",
         "up.delta":  "up_delta",
+        "low.corr":  "low_corr",
+        "up.corr":   "up_corr",
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
 
@@ -153,7 +155,7 @@ def load_data(path: Path) -> pd.DataFrame:
         df = df.drop(columns=["Unnamed: 0"])
 
     # Ensure numeric types
-    for c in ["systemload", "prediction", "low_delta", "up_delta"]:
+    for c in ["systemload", "prediction", "low_delta", "up_delta", "low_corr", "up_corr"]:
         if c in df.columns:
             df[c] = _coerce_numeric(df[c])
 
@@ -232,6 +234,7 @@ def build_single_plot(
     observed: pd.DataFrame | None = None,
     show_observed: bool = True,
     font_size: int = 18,
+    interval_variant: str = "asymptotic normal",
 ) -> go.Figure:
     xcol = _resolve_xcol(df)  # kodiert –1…+1
     xtitle = "Mean arrival time (sec)"
@@ -241,7 +244,13 @@ def build_single_plot(
         st.warning(f"No data for zoning '{zone}'. Available: {sorted(df['zoning'].unique().tolist())}")
 
     order = [s for s in ["FIX", "NO", "EXP"] if s in sources] + [s for s in sources if s not in ["FIX","NO","EXP"]]
-    has_delta = {"low_delta", "up_delta"}.issubset(df.columns)
+    # Choose lower/upper columns based on interval variant
+    variant = (interval_variant or "").strip().lower()
+    if variant.startswith("with finite") or "finite" in variant:
+        low_col, up_col = "low_corr", "up_corr"
+    else:
+        low_col, up_col = "low_delta", "up_delta"
+    has_bands = {low_col, up_col}.issubset(df.columns)
 
     obs = pd.DataFrame()
     if show_observed and observed is not None and not observed.empty:
@@ -281,11 +290,11 @@ def build_single_plot(
         if s.empty:
             continue
 
-        if has_delta and not s[["low_delta","up_delta"]].isna().all().all():
+        if has_bands and not s[[low_col, up_col]].isna().all().all():
             # Extend ribbons to the axis limits
             x_left, x_right = -1.1, 1.1
-            x_low, y_low = _extend_to_limits(s[xcol].to_numpy(), s["low_delta"].to_numpy(), x_left, x_right)
-            x_up,  y_up  = _extend_to_limits(s[xcol].to_numpy(), s["up_delta"].to_numpy(),  x_left, x_right)
+            x_low, y_low = _extend_to_limits(s[xcol].to_numpy(), s[low_col].to_numpy(), x_left, x_right)
+            x_up,  y_up  = _extend_to_limits(s[xcol].to_numpy(), s[up_col].to_numpy(),  x_left, x_right)
             fig.add_trace(go.Scatter(
                 x=x_low, y=y_low, mode="lines",
                 line=dict(width=0), hoverinfo="skip",
@@ -421,6 +430,13 @@ def main():
     col_exp = st.sidebar.color_picker("Exponential", "#009E73")
     colors = {"FIX": col_fix, "NO": col_no, "EXP": col_exp}
 
+    # Prediction interval variant
+    interval_variant = st.sidebar.selectbox(
+        "Prediction interval",
+        ["asymptotic normal", "with finite sample correction"],
+        index=0,
+    )
+
     # Sliders moved below colors
     line_width = st.sidebar.slider("Line width", 1, 6, 3, 1)
     font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)
@@ -431,12 +447,21 @@ def main():
     if zone and sources:
         fig = build_single_plot(
             df, zone, sources, colors, line_width, ribbon_alpha=ribbon_alpha,
-            observed=observed_df, show_observed=show_observed, font_size=font_size
+            observed=observed_df, show_observed=show_observed, font_size=font_size,
+            interval_variant=interval_variant,
         )
         fig.update_layout(width=plot_size, height=plot_size)
         st.plotly_chart(fig, use_container_width=False)
-        if not {"low_delta","up_delta"}.issubset(df.columns):
-            st.warning("Delta intervals not found in dataset – only the central line is plotted.")
+        # Post info if the selected band is missing
+        sel = interval_variant
+        if sel.startswith("with finite"):
+            needed = {"low_corr", "up_corr"}
+            label = "finite-sample corrected"
+        else:
+            needed = {"low_delta", "up_delta"}
+            label = "asymptotic normal"
+        if not needed.issubset(df.columns):
+            st.warning(f"Selected {label} intervals not found – showing line only (if no other bands available).")
     else:
         st.info("Select at least one arrival pattern.")
 
