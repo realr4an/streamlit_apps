@@ -407,7 +407,9 @@ def main():
     st.set_page_config(page_title="2-D curves (Delta)", layout="wide")  # translated
     st.title("LOC of mean order processing time")
 
-    # Select which dataset file to use for the intervals
+    st.sidebar.header("Display")
+
+    # Select which dataset file to use for the intervals (under Display)
     avail = _available_mopt_files()
     if avail:
         labels = list(avail.keys())
@@ -419,7 +421,6 @@ def main():
     df = load_data(path)
     observed_df = load_observed(OBS_DATA_FILE)
 
-    st.sidebar.header("Display")
     zone_options = ["BU","TD","RA","SQ"]
     zones = st.sidebar.multiselect(
         "Assignment strategy", options=zone_options, default=zone_options,  # renamed

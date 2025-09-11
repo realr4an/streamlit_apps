@@ -400,8 +400,10 @@ def build_single_plot(
 def main():
     st.set_page_config(page_title="Single Throughput Plot", layout="wide")
     st.title("LOC of throughput")
+    # Sidebar control (instead of central UI)
+    st.sidebar.header("Display")
 
-    # Select which dataset file to use for the intervals
+    # Select which dataset file to use for the intervals (under Display)
     avail = _available_throughput_files()
     if avail:
         labels = list(avail.keys())
@@ -421,9 +423,6 @@ def main():
     preferred_order = [z for z in ["BU","TD","RA","SQ"] if z in zones_in_data]
     zones_available = preferred_order or zones_in_data
     zone = zones_available[0] if zones_available else None  # automatic selection of first zone
-
-    # Sidebar control (instead of central UI)
-    st.sidebar.header("Display")
 
     # Offer sources present in either predictions or observations
     sources_all = sorted(set(
