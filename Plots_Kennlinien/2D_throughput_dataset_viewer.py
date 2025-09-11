@@ -28,6 +28,14 @@ SOURCE_NORMALIZE = {
 # Datei mit beobachteten Rohwerten (mopt)
 OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 
+def _available_mopt_files() -> dict[str, Path]:
+    """Return available mopt prediction dataset files keyed by interval label."""
+    mapping = {
+        "asymptotic normal": BASE_DIR / "data.mopt_vollesdesign_r2.xlsx",
+        "with finite sample correction": BASE_DIR / "data.mopt_vollesdesign_r2 1.xlsx",
+    }
+    return {k: p for k, p in mapping.items() if p.exists()}
+
 def _find_data_file() -> Path:
     cands = sorted(BASE_DIR.glob("data.mopt_vollesdesign_r2.xlsx"))
     if not cands:
@@ -199,21 +207,21 @@ def build_facets(df: pd.DataFrame,
                  plot_size: int,             # added (for layout sizing)
                  observed: pd.DataFrame | None = None,
                  show_obs_points: bool = False,
-                 font_size: int = 18,
-                 interval_variant: str = "asymptotic normal") -> go.Figure:
+                 font_size: int = 18) -> go.Figure:
 
     # Immer kodierte X-Achse –1…+1
     x_col   = _resolve_xcol(df)
     x_title = "Mean arrival time (sec)"
 
     sub = df[df["zoning"].isin(zones) & df["Source"].isin(sources)].copy()
-    # Decide which band columns to use
-    variant = (interval_variant or "").strip().lower()
-    if variant.startswith("with finite") or "finite" in variant:
+    # Choose interval columns automatically from what's available in the loaded dataset
+    if {"low_corr", "up_corr"}.issubset(sub.columns):
         low_col, up_col = "low_corr", "up_corr"
-    else:
+    elif {"low_delta", "up_delta"}.issubset(sub.columns):
         low_col, up_col = "low_delta", "up_delta"
-    has_bands = {low_col, up_col}.issubset(sub.columns)
+    else:
+        low_col, up_col = None, None
+    has_bands = low_col is not None and up_col is not None
 
     # Beobachtungen subsetten
     obs_sub = pd.DataFrame()
@@ -399,7 +407,15 @@ def main():
     st.set_page_config(page_title="2-D curves (Delta)", layout="wide")  # translated
     st.title("LOC of mean order processing time")
 
-    path = _find_data_file()
+    # Select which dataset file to use for the intervals
+    avail = _available_mopt_files()
+    if avail:
+        labels = list(avail.keys())
+        default_idx = labels.index("asymptotic normal") if "asymptotic normal" in labels else 0
+        chosen_label = st.sidebar.selectbox("Prediction interval", labels, index=default_idx)
+        path = avail[chosen_label]
+    else:
+        path = _find_data_file()
     df = load_data(path)
     observed_df = load_observed(OBS_DATA_FILE)
 
@@ -428,13 +444,6 @@ def main():
     col_no = st.sidebar.color_picker("Normal", "#0072B2")
     col_exp = st.sidebar.color_picker("Exponential", "#009E73")
     colors = {"FIX": col_fix, "NO": col_no, "EXP": col_exp}
-    # Prediction interval variant
-    interval_variant = st.sidebar.selectbox(
-        "Prediction interval",
-        ["asymptotic normal", "with finite sample correction"],
-        index=0,
-    )
-
     line_width = st.sidebar.slider("Line width", 1, 6, 2, 1)              # moved up
     font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)        # moved up
     plot_size = st.sidebar.slider("Plot size (px)", 600, 1400, 1000, 50)  # moved up
@@ -445,22 +454,14 @@ def main():
             df, zones, sources, y_lock, y_zero, colors, ribbon_alpha,
             line_width, plot_size,
             observed=observed_df, show_obs_points=show_obs_points, font_size=font_size,
-            interval_variant=interval_variant,
         )
         st.plotly_chart(
             fig, use_container_width=False,
             key=f"facets-{y_lock}-{y_zero}-{line_width}-{plot_size}"
         )
-        # Post info if the selected band is missing
-        sel = interval_variant
-        if sel.startswith("with finite"):
-            needed = {"low_corr", "up_corr"}
-            label = "finite-sample corrected"
-        else:
-            needed = {"low_delta", "up_delta"}
-            label = "asymptotic normal"
-        if not needed.issubset(df.columns):
-            st.warning(f"Selected {label} intervals not found – showing line only (if no other bands available).")
+        # Info if no intervals are present in the loaded dataset
+        if not ({"low_delta","up_delta"}.issubset(df.columns) or {"low_corr","up_corr"}.issubset(df.columns)):
+            st.warning("No interval bands found in the selected dataset – only the central line is drawn.")
     else:
         st.info("Please select at least one assignment strategy and one arrival pattern.")
 

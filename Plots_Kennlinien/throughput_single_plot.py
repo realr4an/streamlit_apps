@@ -16,6 +16,14 @@ BASE_DIR = Path(__file__).resolve().parent
 # Path to the observation file
 OBS_DATA_FILE = BASE_DIR / "data.xlsx"
 
+# Available throughput prediction files (asymptotic vs finite-sample)
+def _available_throughput_files() -> dict[str, Path]:
+    mapping = {
+        "asymptotic normal": BASE_DIR / "data.throughput_vollesDesign_r2.xlsx",
+        "with finite sample correction": BASE_DIR / "data.throughput_vollesDesign_r2 1.xlsx",
+    }
+    return {k: p for k, p in mapping.items() if p.exists()}
+
 # ----------------------- Mappings ---------------------------
 ZONE_MAP = {
     "BU": "Bottom-Up",
@@ -234,7 +242,6 @@ def build_single_plot(
     observed: pd.DataFrame | None = None,
     show_observed: bool = True,
     font_size: int = 18,
-    interval_variant: str = "asymptotic normal",
 ) -> go.Figure:
     xcol = _resolve_xcol(df)  # kodiert –1…+1
     xtitle = "Mean arrival time (sec)"
@@ -244,13 +251,14 @@ def build_single_plot(
         st.warning(f"No data for zoning '{zone}'. Available: {sorted(df['zoning'].unique().tolist())}")
 
     order = [s for s in ["FIX", "NO", "EXP"] if s in sources] + [s for s in sources if s not in ["FIX","NO","EXP"]]
-    # Choose lower/upper columns based on interval variant
-    variant = (interval_variant or "").strip().lower()
-    if variant.startswith("with finite") or "finite" in variant:
+    # Choose interval columns automatically from what's available in the loaded dataset
+    if {"low_corr", "up_corr"}.issubset(df.columns):
         low_col, up_col = "low_corr", "up_corr"
-    else:
+    elif {"low_delta", "up_delta"}.issubset(df.columns):
         low_col, up_col = "low_delta", "up_delta"
-    has_bands = {low_col, up_col}.issubset(df.columns)
+    else:
+        low_col, up_col = None, None
+    has_bands = low_col is not None and up_col is not None
 
     obs = pd.DataFrame()
     if show_observed and observed is not None and not observed.empty:
@@ -393,7 +401,15 @@ def main():
     st.set_page_config(page_title="Single Throughput Plot", layout="wide")
     st.title("LOC of throughput")
 
-    path = _find_data_file()
+    # Select which dataset file to use for the intervals
+    avail = _available_throughput_files()
+    if avail:
+        labels = list(avail.keys())
+        default_idx = labels.index("asymptotic normal") if "asymptotic normal" in labels else 0
+        chosen_label = st.sidebar.selectbox("Prediction interval", labels, index=default_idx)
+        path = avail[chosen_label]
+    else:
+        path = _find_data_file()
     df = load_data(path)
     try:
         observed_df = load_observed(OBS_DATA_FILE)
@@ -430,13 +446,6 @@ def main():
     col_exp = st.sidebar.color_picker("Exponential", "#009E73")
     colors = {"FIX": col_fix, "NO": col_no, "EXP": col_exp}
 
-    # Prediction interval variant
-    interval_variant = st.sidebar.selectbox(
-        "Prediction interval",
-        ["asymptotic normal", "with finite sample correction"],
-        index=0,
-    )
-
     # Sliders moved below colors
     line_width = st.sidebar.slider("Line width", 1, 6, 3, 1)
     font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)
@@ -448,20 +457,12 @@ def main():
         fig = build_single_plot(
             df, zone, sources, colors, line_width, ribbon_alpha=ribbon_alpha,
             observed=observed_df, show_observed=show_observed, font_size=font_size,
-            interval_variant=interval_variant,
         )
         fig.update_layout(width=plot_size, height=plot_size)
         st.plotly_chart(fig, use_container_width=False)
-        # Post info if the selected band is missing
-        sel = interval_variant
-        if sel.startswith("with finite"):
-            needed = {"low_corr", "up_corr"}
-            label = "finite-sample corrected"
-        else:
-            needed = {"low_delta", "up_delta"}
-            label = "asymptotic normal"
-        if not needed.issubset(df.columns):
-            st.warning(f"Selected {label} intervals not found – showing line only (if no other bands available).")
+        # Info if no intervals are present in the loaded dataset
+        if not ({"low_delta","up_delta"}.issubset(df.columns) or {"low_corr","up_corr"}.issubset(df.columns)):
+            st.warning("No interval bands found in the selected dataset – only the central line is plotted.")
     else:
         st.info("Select at least one arrival pattern.")
 
