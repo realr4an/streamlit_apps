@@ -13,16 +13,37 @@ import numpy as np
 # Base directory of this script (needed for file lookups)
 BASE_DIR = Path(__file__).resolve().parent
 
-# Path to the observation file
-OBS_DATA_FILE = BASE_DIR / "data.xlsx"
+# Design-specific dataset configuration
+DESIGN_CONFIGS: dict[str, dict] = {
+    "FFF 24, r=0": {
+        "prediction_files": {
+            "delta interval": BASE_DIR / "data.throughput_FFF24.xlsx",
+        },
+        "observed_file": None,
+        "default_interval": "delta interval",
+    },
+    "full design, r=3": {
+        "prediction_files": {
+            "asymptotic normal": BASE_DIR / "data.throughput_vollesDesign_r2.xlsx",
+            "with finite sample correction": BASE_DIR / "data.throughput_vollesDesign_r2 1.xlsx",
+        },
+        "observed_file": BASE_DIR / "data.xlsx",
+        "default_interval": "asymptotic normal",
+    },
+}
 
-# Available throughput prediction files (asymptotic vs finite-sample)
-def _available_throughput_files() -> dict[str, Path]:
-    mapping = {
-        "asymptotic normal": BASE_DIR / "data.throughput_vollesDesign_r2.xlsx",
-        "with finite sample correction": BASE_DIR / "data.throughput_vollesDesign_r2 1.xlsx",
-    }
-    return {k: p for k, p in mapping.items() if p.exists()}
+
+def _available_designs() -> dict[str, dict]:
+    """Filter designs to those where at least one prediction file exists."""
+    available: dict[str, dict] = {}
+    for name, cfg in DESIGN_CONFIGS.items():
+        paths = {
+            label: path for label, path in cfg.get("prediction_files", {}).items()
+            if path.exists()
+        }
+        if paths:
+            available[name] = {**cfg, "prediction_files": paths}
+    return available
 
 # ----------------------- Mappings ---------------------------
 ZONE_MAP = {
@@ -67,16 +88,6 @@ ZONING_NORMALIZE = {
     "SHORTEST QUEUE": "SQ",
 }
 
-# ----------------------- Find file -----------------------
-def _find_data_file() -> Path:
-    patterns = [
-        "data.throughput_vollesDesign_r2.xlsx"
-    ]
-    for pat in patterns:
-        cands = sorted(BASE_DIR.glob(pat))
-        if cands:
-            return cands[0]
-    raise FileNotFoundError("No matching Excel file found.")
 
 # Robust numeric coercion that also handles decimal commas
 def _coerce_numeric(series: pd.Series) -> pd.Series:
@@ -225,6 +236,24 @@ def load_observed(path: Path) -> pd.DataFrame:
             source_col = source_col.iloc[:, 0]
         df["source"] = source_col.apply(_normalize_source_value)
     return df
+
+
+def _extract_observed_from_dataset(dataset: pd.DataFrame) -> pd.DataFrame:
+    """Build an observation frame from the prediction dataset if no external file exists."""
+    required = {"systemload", "throughput", "zoning"}
+    if not required.issubset(dataset.columns):
+        return pd.DataFrame()
+    cols = ["systemload", "throughput", "zoning"]
+    if "source" in dataset.columns:
+        cols.append("source")
+    obs = dataset.loc[:, cols].copy()
+    obs = obs.dropna(subset=["systemload", "throughput", "zoning"])
+    if "source" not in obs.columns:
+        obs["source"] = "ALL"
+    obs["source"] = obs["source"].apply(_normalize_source_value)
+    # Ensure the categorical columns match the normalization used elsewhere
+    obs["zoning"] = obs["zoning"].astype(str).str.upper().str.strip().replace(ZONING_NORMALIZE)
+    return obs
 
 def _rgba(hex_color: str, alpha: float) -> str:
     hex_color = hex_color.lstrip("#")
@@ -403,21 +432,36 @@ def main():
     # Sidebar control (instead of central UI)
     st.sidebar.header("Display")
 
-    # Select which dataset file to use for the intervals (under Display)
-    avail = _available_throughput_files()
-    if avail:
-        labels = list(avail.keys())
-        default_idx = labels.index("asymptotic normal") if "asymptotic normal" in labels else 0
-        chosen_label = st.sidebar.selectbox("Prediction interval", labels, index=default_idx)
-        path = avail[chosen_label]
-    else:
-        path = _find_data_file()
-    df = load_data(path)
-    try:
-        observed_df = load_observed(OBS_DATA_FILE)
-    except FileNotFoundError:
-        observed_df = pd.DataFrame()
-        st.warning("Observation file 'data.xlsx' not found – no points plotted.")
+    available_designs = _available_designs()
+    if not available_designs:
+        st.error("No throughput datasets found next to this script.")
+        st.stop()
+
+    design_labels = list(available_designs.keys())
+    default_design = design_labels.index("FFF 24, r=0") if "FFF 24, r=0" in design_labels else 0
+    design_choice = st.sidebar.selectbox("Design", design_labels, index=default_design)
+    design_cfg = available_designs[design_choice]
+
+    predictions = design_cfg["prediction_files"]
+    interval_labels = list(predictions.keys())
+    default_interval = design_cfg.get("default_interval")
+    if default_interval not in interval_labels:
+        default_interval = interval_labels[0]
+    interval_idx = interval_labels.index(default_interval)
+    chosen_interval = st.sidebar.selectbox("Prediction interval", interval_labels, index=interval_idx)
+
+    df = load_data(predictions[chosen_interval])
+
+    observed_df = pd.DataFrame()
+    observed_path = design_cfg.get("observed_file")
+    if observed_path is not None:
+        try:
+            observed_df = load_observed(observed_path)
+        except FileNotFoundError:
+            st.warning(f"Observation file '{observed_path.name}' not found – no points plotted.")
+
+    if observed_df.empty:
+        observed_df = _extract_observed_from_dataset(df)
 
     zones_in_data = sorted(df["zoning"].dropna().unique().tolist())
     preferred_order = [z for z in ["BU","TD","RA","SQ"] if z in zones_in_data]
@@ -436,7 +480,10 @@ def main():
         format_func=lambda s: SOURCE_MAP.get(s, s),
         key="sources_select"
     )
-    show_observed = st.sidebar.checkbox("Show observed throughput", value=True)  # moved up
+    show_observed_default = not observed_df.empty
+    show_observed = st.sidebar.checkbox("Show observed throughput", value=show_observed_default)
+    if show_observed and observed_df.empty:
+        st.sidebar.info("No observed throughput available for this design.")
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Colors")  # colors now before sliders

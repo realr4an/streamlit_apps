@@ -26,21 +26,35 @@ SOURCE_NORMALIZE = {
     "NO": "NO",
 }
 # Datei mit beobachteten Rohwerten (mopt)
-OBS_DATA_FILE = BASE_DIR / "data.xlsx"
+DESIGN_CONFIGS: dict[str, dict] = {
+    "FFF 24, r=0": {
+        "prediction_files": {
+            "delta interval": BASE_DIR / "data.mopt_FFF24.xlsx",
+        },
+        "observed_file": None,
+        "default_interval": "delta interval",
+    },
+    "full design, r=3": {
+        "prediction_files": {
+            "asymptotic normal": BASE_DIR / "data.mopt_vollesdesign_r2.xlsx",
+            "with finite sample correction": BASE_DIR / "data.mopt_vollesdesign_r2 1.xlsx",
+        },
+        "observed_file": BASE_DIR / "data.xlsx",
+        "default_interval": "asymptotic normal",
+    },
+}
 
-def _available_mopt_files() -> dict[str, Path]:
-    """Return available mopt prediction dataset files keyed by interval label."""
-    mapping = {
-        "asymptotic normal": BASE_DIR / "data.mopt_vollesdesign_r2.xlsx",
-        "with finite sample correction": BASE_DIR / "data.mopt_vollesdesign_r2 1.xlsx",
-    }
-    return {k: p for k, p in mapping.items() if p.exists()}
 
-def _find_data_file() -> Path:
-    cands = sorted(BASE_DIR.glob("data.mopt_vollesdesign_r2.xlsx"))
-    if not cands:
-        raise FileNotFoundError("No data.mopt.2d*.xlsx file found in script directory.")
-    return cands[0]
+def _available_designs() -> dict[str, dict]:
+    available: dict[str, dict] = {}
+    for name, cfg in DESIGN_CONFIGS.items():
+        preds = {
+            label: path for label, path in cfg.get("prediction_files", {}).items()
+            if path.exists()
+        }
+        if preds:
+            available[name] = {**cfg, "prediction_files": preds}
+    return available
 
 def _rgba(hex_color: str, alpha: float) -> str:
     hex_color = hex_color.lstrip("#")
@@ -182,6 +196,23 @@ def load_observed(path: Path) -> pd.DataFrame:
         df["Source"] = s.astype(str).str.upper().str.strip().replace(SOURCE_NORMALIZE)
 
     return df
+
+
+def _extract_observed_from_dataset(dataset: pd.DataFrame) -> pd.DataFrame:
+    required = {"systemload", "mopt", "zoning"}
+    if not required.issubset(dataset.columns):
+        return pd.DataFrame()
+    cols = ["systemload", "mopt", "zoning"]
+    if "Source" in dataset.columns:
+        cols.append("Source")
+    obs = dataset.loc[:, cols].copy()
+    obs = obs.dropna(subset=["systemload", "mopt", "zoning"])
+    if "Source" not in obs.columns:
+        obs["Source"] = "ALL"
+    obs["Source"] = obs["Source"].astype(str).str.upper().str.strip().replace(SOURCE_NORMALIZE)
+    obs["zoning"] = obs["zoning"].astype(str).str.upper().str.strip()
+    return obs
+
 
 def _order_sources(sources: list[str]) -> list[str]:
     in_data_ordered = [s for s in SOURCE_ORDER if s in sources]
@@ -409,17 +440,33 @@ def main():
 
     st.sidebar.header("Display")
 
-    # Select which dataset file to use for the intervals (under Display)
-    avail = _available_mopt_files()
-    if avail:
-        labels = list(avail.keys())
-        default_idx = labels.index("asymptotic normal") if "asymptotic normal" in labels else 0
-        chosen_label = st.sidebar.selectbox("Prediction interval", labels, index=default_idx)
-        path = avail[chosen_label]
-    else:
-        path = _find_data_file()
-    df = load_data(path)
-    observed_df = load_observed(OBS_DATA_FILE)
+    available_designs = _available_designs()
+    if not available_designs:
+        st.error("No mopt datasets found next to this script.")
+        st.stop()
+
+    design_labels = list(available_designs.keys())
+    default_design = design_labels.index("FFF 24, r=0") if "FFF 24, r=0" in design_labels else 0
+    design_choice = st.sidebar.selectbox("Design", design_labels, index=default_design)
+    design_cfg = available_designs[design_choice]
+
+    predictions = design_cfg["prediction_files"]
+    interval_labels = list(predictions.keys())
+    default_interval = design_cfg.get("default_interval")
+    if default_interval not in interval_labels:
+        default_interval = interval_labels[0]
+    interval_idx = interval_labels.index(default_interval)
+    chosen_interval = st.sidebar.selectbox("Prediction interval", interval_labels, index=interval_idx)
+
+    df = load_data(predictions[chosen_interval])
+
+    observed_df = pd.DataFrame()
+    observed_path = design_cfg.get("observed_file")
+    if observed_path is not None:
+        observed_df = load_observed(observed_path)
+
+    if observed_df.empty:
+        observed_df = _extract_observed_from_dataset(df)
 
     zone_options = ["BU","TD","RA","SQ"]
     zones = st.sidebar.multiselect(
@@ -437,7 +484,10 @@ def main():
 
     y_lock = st.sidebar.checkbox("Uniform y-range across panels", True)
     y_zero = st.sidebar.checkbox("Force y-axis start at 0", False)
-    show_obs_points = st.sidebar.checkbox("Show observed mean order processing time", True)  # moved up
+    show_obs_default = not observed_df.empty
+    show_obs_points = st.sidebar.checkbox("Show observed mean order processing time", show_obs_default)
+    if show_obs_points and observed_df.empty:
+        st.sidebar.info("No observed mean order processing time available for this design.")
 
     st.sidebar.markdown("---")
     st.sidebar.caption("Colors")
