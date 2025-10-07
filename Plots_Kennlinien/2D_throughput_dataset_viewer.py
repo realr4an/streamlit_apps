@@ -238,7 +238,6 @@ def build_facets(df: pd.DataFrame,
                  zones: list[str],
                  sources: list[str],
                  y_lock: bool,
-                 y_zero: bool,
                  colors: dict[str, str],
                  ribbon_alpha: float,
                  line_width: int,            # added
@@ -510,7 +509,6 @@ def main():
     )
 
     y_lock = st.sidebar.checkbox("Uniform y-range across panels", True)
-    y_zero = st.sidebar.checkbox("Force y-axis start at 0", False)
     show_obs_default = not observed_df.empty
     show_obs_points = st.sidebar.checkbox("Show observed mean order processing time", show_obs_default)
     if show_obs_points and observed_df.empty:
@@ -529,14 +527,14 @@ def main():
 
     if zones and sources:
         fig = build_facets(
-            df, zones, sources, y_lock, y_zero, colors, ribbon_alpha,
+            df, zones, sources, y_lock, colors, ribbon_alpha,
             line_width, plot_size,
             observed=observed_df, show_obs_points=show_obs_points, font_size=font_size,
             line_column=line_column, observed_value_column=obs_value_column,
         )
         st.plotly_chart(
             fig, use_container_width=False,
-            key=f"facets-{y_lock}-{y_zero}-{line_width}-{plot_size}"
+            key=f"facets-{y_lock}-{line_width}-{plot_size}"
         )
         # Info if no intervals are present in the loaded dataset
         if not ({"low_delta","up_delta"}.issubset(df.columns) or {"low_corr","up_corr"}.issubset(df.columns)):
