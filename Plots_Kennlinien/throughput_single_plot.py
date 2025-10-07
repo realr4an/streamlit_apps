@@ -302,7 +302,8 @@ def build_single_plot(
 
     obs = pd.DataFrame()
     if show_observed and observed is not None and not observed.empty:
-        obs = observed[(observed["zoning"] == zone) & (observed["source"].isin(sources))].copy()
+        obs = observed[observed["source"].isin(sources)].copy()
+        obs = obs.dropna(subset=[xcol, observed_value_column])
 
     # Helper: extend line endpoints to axis limits so the curve reaches the frame border
     def _extend_to_limits(x: np.ndarray, y: np.ndarray, left: float, right: float) -> tuple[np.ndarray, np.ndarray]:
@@ -378,6 +379,9 @@ def build_single_plot(
                 continue
             if src_pts.empty or src_pts[observed_value_column].isna().all():
                 continue
+            custom = None
+            if "zoning" in src_pts.columns:
+                custom = np.array(src_pts["zoning"], dtype=object).reshape(-1, 1)
             fig.add_trace(
                 go.Scatter(
                     x=src_pts[xcol] if xcol in src_pts.columns else src_pts.get("systemload", src_pts.iloc[:,0]),
@@ -392,7 +396,12 @@ def build_single_plot(
                     name="Observation (colored)",
                     legendgroup="obs",
                     showlegend=False,
-                    hovertemplate="Observation<br>Mean arrival time: %{x}<br>Throughput: %{y}<extra></extra>",  # changed
+                    customdata=custom,
+                    hovertemplate=(
+                        "Observation" +
+                        ("<br>Assignment strategy: %{customdata[0]}" if custom is not None else "") +
+                        "<br>Mean arrival time: %{x}<br>Throughput: %{y}<extra></extra>"
+                    ),
                 )
             )
         fig.add_trace(
