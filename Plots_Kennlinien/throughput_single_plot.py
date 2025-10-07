@@ -531,7 +531,7 @@ def main():
     colors = {"FIX": col_fix, "NO": col_no, "EXP": col_exp}
 
     # Sliders moved below colors
-    line_width = st.sidebar.slider("Line width", 1, 6, 3, 1)
+    line_width = st.sidebar.slider("Line width", 1, 6, 2, 1)
     font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)
     plot_size = st.sidebar.slider("Plot size (px)", 400, 900, 700, 10)
     ribbon_alpha = st.sidebar.slider("Ribbon transparency", 0.05, 0.9, 0.18, 0.01)
