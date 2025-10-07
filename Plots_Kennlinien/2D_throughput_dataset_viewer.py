@@ -27,20 +27,19 @@ SOURCE_NORMALIZE = {
 }
 # Datei mit beobachteten Rohwerten (mopt)
 DESIGN_CONFIGS: dict[str, dict] = {
-    "FFF 24, r=0": {
+    "FFF 36, r=0": {
         "prediction_files": {
-            "delta interval": BASE_DIR / "data.mopt_FFF24.xlsx",
+            "delta interval": BASE_DIR / "data.mopt_FFF36.xlsx",
         },
         "observed_file": None,
         "default_interval": "delta interval",
-    },
-    "full design, r=3": {
-        "prediction_files": {
-            "asymptotic normal": BASE_DIR / "data.mopt_vollesdesign_r2.xlsx",
-            "with finite sample correction": BASE_DIR / "data.mopt_vollesdesign_r2 1.xlsx",
+        "line_column": "mopt",
+        "observed_value_column": "prediction",
+        "pseudo_observed": {
+            "y_from": "prediction",
+            "y_to": "prediction",
+            "source_field": "Source",
         },
-        "observed_file": BASE_DIR / "data.xlsx",
-        "default_interval": "asymptotic normal",
     },
 }
 
@@ -198,20 +197,32 @@ def load_observed(path: Path) -> pd.DataFrame:
     return df
 
 
-def _extract_observed_from_dataset(dataset: pd.DataFrame) -> pd.DataFrame:
-    required = {"systemload", "mopt", "zoning"}
-    if not required.issubset(dataset.columns):
+def _build_pseudo_observations(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    pseudo_cfg = cfg.get("pseudo_observed")
+    if not pseudo_cfg:
         return pd.DataFrame()
-    cols = ["systemload", "mopt", "zoning"]
-    if "Source" in dataset.columns:
-        cols.append("Source")
-    obs = dataset.loc[:, cols].copy()
-    obs = obs.dropna(subset=["systemload", "mopt", "zoning"])
-    if "Source" not in obs.columns:
-        obs["Source"] = "ALL"
-    obs["Source"] = obs["Source"].astype(str).str.upper().str.strip().replace(SOURCE_NORMALIZE)
+
+    y_from = pseudo_cfg.get("y_from")
+    y_to = pseudo_cfg.get("y_to", y_from)
+    source_field = pseudo_cfg.get("source_field", "Source")
+
+    required_cols = {"systemload", "zoning", y_from}
+    if source_field in df.columns:
+        required_cols.add(source_field)
+    if not required_cols.issubset(df.columns):
+        return pd.DataFrame()
+
+    obs = df.loc[:, list(required_cols)].copy()
+    obs = obs.rename(columns={y_from: y_to})
+    if source_field not in obs.columns:
+        obs[source_field] = "ALL"
+
+    obs[source_field] = obs[source_field].astype(str).str.upper().str.strip().replace(SOURCE_NORMALIZE)
     obs["zoning"] = obs["zoning"].astype(str).str.upper().str.strip()
-    return obs
+
+    keep_cols = ["systemload", "zoning", source_field, y_to]
+    obs = obs.loc[:, keep_cols]
+    return obs.dropna(subset=["systemload", "zoning", y_to])
 
 
 def _order_sources(sources: list[str]) -> list[str]:
@@ -238,7 +249,9 @@ def build_facets(df: pd.DataFrame,
                  plot_size: int,             # added (for layout sizing)
                  observed: pd.DataFrame | None = None,
                  show_obs_points: bool = False,
-                 font_size: int = 18) -> go.Figure:
+                 font_size: int = 18,
+                 line_column: str = "prediction",
+                 observed_value_column: str = "mopt") -> go.Figure:
 
     # Immer kodierte X-Achse –1…+1
     x_col   = _resolve_xcol(df)
@@ -257,7 +270,7 @@ def build_facets(df: pd.DataFrame,
     # Beobachtungen subsetten
     obs_sub = pd.DataFrame()
     if show_obs_points and observed is not None and not observed.empty:
-        needed_cols = {"zoning", "Source", x_col, "mopt"}
+        needed_cols = {"zoning", "Source", x_col, observed_value_column}
         if needed_cols.issubset(set(observed.columns)):
             obs_sub = observed[(observed["zoning"].isin(zones)) & (observed["Source"].isin(sources))].copy()
 
@@ -343,9 +356,14 @@ def build_facets(df: pd.DataFrame,
                     row=r, col=c
                 )
 
+            if line_column not in d.columns:
+                line_col = "prediction" if "prediction" in d.columns else d.columns[-1]
+            else:
+                line_col = line_column
+
             if not d.empty:
                 # Extend central curve to the plot edges
-                x_pred, y_pred = _extend_to_limits(d[x_col].to_numpy(dtype=float), d["prediction"].to_numpy(dtype=float), x_left, x_right)
+                x_pred, y_pred = _extend_to_limits(d[x_col].to_numpy(dtype=float), d[line_col].to_numpy(dtype=float), x_left, x_right)
                 fig.add_trace(
                     go.Scatter(x=x_pred, y=y_pred, mode="lines",
                                line=dict(color=colors.get(src, "#444444"), width=line_width),  # use dynamic width
@@ -357,10 +375,12 @@ def build_facets(df: pd.DataFrame,
             # Beobachtete mopt-Punkte (farbig, ohne Legendeneintrag)
             if show_obs_points and not obs_z.empty:
                 o = obs_z[obs_z["Source"] == src].sort_values(x_col)
-                if not o.empty and not o["mopt"].isna().all():
+                if observed_value_column not in o.columns:
+                    continue
+                if not o.empty and not o[observed_value_column].isna().all():
                     fig.add_trace(
                         go.Scatter(
-                            x=o[x_col], y=o["mopt"], mode="markers",
+                            x=o[x_col], y=o[observed_value_column], mode="markers",
                             marker=dict(symbol="circle", size=6, color=colors.get(src, "#666"),
                                         line=dict(width=0.5, color="#222")),
                             name="Observed mopt (colored)",
@@ -446,8 +466,12 @@ def main():
         st.stop()
 
     design_labels = list(available_designs.keys())
-    default_design = design_labels.index("FFF 24, r=0") if "FFF 24, r=0" in design_labels else 0
-    design_choice = st.sidebar.selectbox("Design", design_labels, index=default_design)
+    if len(design_labels) == 1:
+        design_choice = design_labels[0]
+        st.sidebar.markdown(f"**Design:** {design_choice}")
+    else:
+        default_design = design_labels.index("FFF 36, r=0") if "FFF 36, r=0" in design_labels else 0
+        design_choice = st.sidebar.selectbox("Design", design_labels, index=default_design)
     design_cfg = available_designs[design_choice]
 
     predictions = design_cfg["prediction_files"]
@@ -455,8 +479,12 @@ def main():
     default_interval = design_cfg.get("default_interval")
     if default_interval not in interval_labels:
         default_interval = interval_labels[0]
-    interval_idx = interval_labels.index(default_interval)
-    chosen_interval = st.sidebar.selectbox("Prediction interval", interval_labels, index=interval_idx)
+    if len(interval_labels) == 1:
+        chosen_interval = interval_labels[0]
+        st.sidebar.markdown(f"**Prediction interval:** {chosen_interval}")
+    else:
+        interval_idx = interval_labels.index(default_interval)
+        chosen_interval = st.sidebar.selectbox("Prediction interval", interval_labels, index=interval_idx)
 
     df = load_data(predictions[chosen_interval])
 
@@ -466,7 +494,12 @@ def main():
         observed_df = load_observed(observed_path)
 
     if observed_df.empty:
-        observed_df = _extract_observed_from_dataset(df)
+        pseudo_obs = _build_pseudo_observations(df, design_cfg)
+        if not pseudo_obs.empty:
+            observed_df = pseudo_obs
+
+    line_column = design_cfg.get("line_column", "prediction")
+    obs_value_column = design_cfg.get("observed_value_column", "mopt")
 
     zone_options = ["BU","TD","RA","SQ"]
     zones = st.sidebar.multiselect(
@@ -505,6 +538,7 @@ def main():
             df, zones, sources, y_lock, y_zero, colors, ribbon_alpha,
             line_width, plot_size,
             observed=observed_df, show_obs_points=show_obs_points, font_size=font_size,
+            line_column=line_column, observed_value_column=obs_value_column,
         )
         st.plotly_chart(
             fig, use_container_width=False,

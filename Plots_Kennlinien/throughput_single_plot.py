@@ -15,20 +15,19 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # Design-specific dataset configuration
 DESIGN_CONFIGS: dict[str, dict] = {
-    "FFF 24, r=0": {
+    "FFF 36, r=0": {
         "prediction_files": {
-            "delta interval": BASE_DIR / "data.throughput_FFF24.xlsx",
+            "delta interval": BASE_DIR / "data.throughput_FFF36.xlsx",
         },
         "observed_file": None,
         "default_interval": "delta interval",
-    },
-    "full design, r=3": {
-        "prediction_files": {
-            "asymptotic normal": BASE_DIR / "data.throughput_vollesDesign_r2.xlsx",
-            "with finite sample correction": BASE_DIR / "data.throughput_vollesDesign_r2 1.xlsx",
+        "line_column": "throughput",
+        "observed_value_column": "prediction",
+        "pseudo_observed": {
+            "y_from": "prediction",
+            "y_to": "prediction",
+            "source_field": "source",
         },
-        "observed_file": BASE_DIR / "data.xlsx",
-        "default_interval": "asymptotic normal",
     },
 }
 
@@ -87,6 +86,35 @@ ZONING_NORMALIZE = {
     "RANDOM": "RA",
     "SHORTEST QUEUE": "SQ",
 }
+
+
+def _build_pseudo_observations(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    pseudo_cfg = cfg.get("pseudo_observed")
+    if not pseudo_cfg:
+        return pd.DataFrame()
+
+    y_from = pseudo_cfg.get("y_from")
+    y_to = pseudo_cfg.get("y_to", y_from)
+    source_field = pseudo_cfg.get("source_field", "source")
+
+    required_cols = {"systemload", "zoning", y_from}
+    if source_field in df.columns:
+        required_cols.add(source_field)
+    if not required_cols.issubset(df.columns):
+        return pd.DataFrame()
+
+    obs = df.loc[:, list(required_cols)].copy()
+    obs = obs.rename(columns={y_from: y_to})
+    if source_field not in obs.columns:
+        obs[source_field] = "ALL"
+
+    obs = obs.rename(columns={source_field: "source"})
+    obs["source"] = obs["source"].apply(_normalize_source_value)
+    obs["zoning"] = obs["zoning"].astype(str).str.upper().str.strip().replace(ZONING_NORMALIZE)
+
+    keep_cols = ["systemload", "zoning", "source", y_to]
+    obs = obs.loc[:, keep_cols]
+    return obs.dropna(subset=["systemload", "zoning", y_to])
 
 
 # Robust numeric coercion that also handles decimal commas
@@ -238,23 +266,6 @@ def load_observed(path: Path) -> pd.DataFrame:
     return df
 
 
-def _extract_observed_from_dataset(dataset: pd.DataFrame) -> pd.DataFrame:
-    """Build an observation frame from the prediction dataset if no external file exists."""
-    required = {"systemload", "throughput", "zoning"}
-    if not required.issubset(dataset.columns):
-        return pd.DataFrame()
-    cols = ["systemload", "throughput", "zoning"]
-    if "source" in dataset.columns:
-        cols.append("source")
-    obs = dataset.loc[:, cols].copy()
-    obs = obs.dropna(subset=["systemload", "throughput", "zoning"])
-    if "source" not in obs.columns:
-        obs["source"] = "ALL"
-    obs["source"] = obs["source"].apply(_normalize_source_value)
-    # Ensure the categorical columns match the normalization used elsewhere
-    obs["zoning"] = obs["zoning"].astype(str).str.upper().str.strip().replace(ZONING_NORMALIZE)
-    return obs
-
 def _rgba(hex_color: str, alpha: float) -> str:
     hex_color = hex_color.lstrip("#")
     r, g, b = (int(hex_color[i:i+2], 16) for i in (0, 2, 4))
@@ -271,6 +282,8 @@ def build_single_plot(
     observed: pd.DataFrame | None = None,
     show_observed: bool = True,
     font_size: int = 18,
+    line_column: str = "prediction",
+    observed_value_column: str = "throughput",
 ) -> go.Figure:
     xcol = _resolve_xcol(df)  # kodiert –1…+1
     xtitle = "Mean arrival time (sec)"
@@ -344,9 +357,14 @@ def build_single_plot(
                 hoverinfo="skip", showlegend=False, legendgroup=src
             ))
 
+        if line_column not in s.columns:
+            line_col = "prediction" if "prediction" in s.columns else s.columns[-1]
+        else:
+            line_col = line_column
+
         # Extend central prediction to axis limits
         x_left, x_right = -1.1, 1.1
-        x_pred, y_pred = _extend_to_limits(s[xcol].to_numpy(), s["prediction"].to_numpy(), x_left, x_right)
+        x_pred, y_pred = _extend_to_limits(s[xcol].to_numpy(), s[line_col].to_numpy(), x_left, x_right)
         fig.add_trace(go.Scatter(
             x=x_pred, y=y_pred, mode="lines",
             name=SOURCE_MAP.get(src, src),
@@ -358,12 +376,14 @@ def build_single_plot(
     if not obs.empty:
         for src in order:
             src_pts = obs[obs["source"] == src]
-            if src_pts.empty or src_pts["throughput"].isna().all():
+            if observed_value_column not in src_pts.columns:
+                continue
+            if src_pts.empty or src_pts[observed_value_column].isna().all():
                 continue
             fig.add_trace(
                 go.Scatter(
                     x=src_pts[xcol] if xcol in src_pts.columns else src_pts.get("systemload", src_pts.iloc[:,0]),
-                    y=src_pts["throughput"],
+                    y=src_pts[observed_value_column],
                     mode="markers",
                     marker=dict(
                         symbol="circle",
@@ -438,8 +458,12 @@ def main():
         st.stop()
 
     design_labels = list(available_designs.keys())
-    default_design = design_labels.index("FFF 24, r=0") if "FFF 24, r=0" in design_labels else 0
-    design_choice = st.sidebar.selectbox("Design", design_labels, index=default_design)
+    if len(design_labels) == 1:
+        design_choice = design_labels[0]
+        st.sidebar.markdown(f"**Design:** {design_choice}")
+    else:
+        default_design = design_labels.index("FFF 36, r=0") if "FFF 36, r=0" in design_labels else 0
+        design_choice = st.sidebar.selectbox("Design", design_labels, index=default_design)
     design_cfg = available_designs[design_choice]
 
     predictions = design_cfg["prediction_files"]
@@ -447,8 +471,12 @@ def main():
     default_interval = design_cfg.get("default_interval")
     if default_interval not in interval_labels:
         default_interval = interval_labels[0]
-    interval_idx = interval_labels.index(default_interval)
-    chosen_interval = st.sidebar.selectbox("Prediction interval", interval_labels, index=interval_idx)
+    if len(interval_labels) == 1:
+        chosen_interval = interval_labels[0]
+        st.sidebar.markdown(f"**Prediction interval:** {chosen_interval}")
+    else:
+        interval_idx = interval_labels.index(default_interval)
+        chosen_interval = st.sidebar.selectbox("Prediction interval", interval_labels, index=interval_idx)
 
     df = load_data(predictions[chosen_interval])
 
@@ -461,7 +489,9 @@ def main():
             st.warning(f"Observation file '{observed_path.name}' not found – no points plotted.")
 
     if observed_df.empty:
-        observed_df = _extract_observed_from_dataset(df)
+        pseudo_obs = _build_pseudo_observations(df, design_cfg)
+        if not pseudo_obs.empty:
+            observed_df = pseudo_obs
 
     zones_in_data = sorted(df["zoning"].dropna().unique().tolist())
     preferred_order = [z for z in ["BU","TD","RA","SQ"] if z in zones_in_data]
@@ -480,6 +510,9 @@ def main():
         format_func=lambda s: SOURCE_MAP.get(s, s),
         key="sources_select"
     )
+    line_column = design_cfg.get("line_column", "prediction")
+    obs_value_column = design_cfg.get("observed_value_column", "throughput")
+
     show_observed_default = not observed_df.empty
     show_observed = st.sidebar.checkbox("Show observed throughput", value=show_observed_default)
     if show_observed and observed_df.empty:
@@ -503,6 +536,7 @@ def main():
         fig = build_single_plot(
             df, zone, sources, colors, line_width, ribbon_alpha=ribbon_alpha,
             observed=observed_df, show_observed=show_observed, font_size=font_size,
+            line_column=line_column, observed_value_column=obs_value_column,
         )
         fig.update_layout(width=plot_size, height=plot_size)
         st.plotly_chart(fig, use_container_width=False)
