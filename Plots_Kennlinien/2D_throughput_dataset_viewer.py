@@ -31,15 +31,10 @@ DESIGN_CONFIGS: dict[str, dict] = {
         "prediction_files": {
             "delta interval": BASE_DIR / "data.mopt_FFF36.xlsx",
         },
-        "observed_file": None,
+        "observed_file": BASE_DIR / "FFF36_neu.xlsx",
         "default_interval": "delta interval",
         "line_column": "mopt",
-        "observed_value_column": "prediction",
-        "pseudo_observed": {
-            "y_from": "prediction",
-            "y_to": "prediction",
-            "source_field": "Source",
-        },
+        "observed_value_column": "mopt",
     },
 }
 
@@ -124,8 +119,7 @@ def load_data(path: Path) -> pd.DataFrame:
         "up.corr":   "up_corr",
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
-    if "Unnamed: 0" in df.columns:
-        df = df.drop(columns=["Unnamed: 0"])
+    df = df.loc[:, ~df.columns.astype(str).str.startswith("Unnamed")]
     if "Source" not in df.columns:
         df["Source"] = "ALL"
     for col in ["systemload","prediction","low_delta","up_delta","low_corr","up_corr"]:
@@ -162,6 +156,8 @@ def load_observed(path: Path) -> pd.DataFrame:
         "distributinstrategy": "zoning",  # Tippfehler-Variante
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+    df = df.loc[:, ~df.columns.astype(str).str.startswith("Unnamed")]
 
     def _collapse(frame: pd.DataFrame, col: str) -> pd.DataFrame:
         if list(frame.columns).count(col) > 1:
@@ -468,7 +464,6 @@ def main():
     design_labels = list(available_designs.keys())
     if len(design_labels) == 1:
         design_choice = design_labels[0]
-        st.sidebar.markdown(f"**Design:** {design_choice}")
     else:
         default_design = design_labels.index("FFF 36, r=0") if "FFF 36, r=0" in design_labels else 0
         design_choice = st.sidebar.selectbox("Design", design_labels, index=default_design)
@@ -481,7 +476,6 @@ def main():
         default_interval = interval_labels[0]
     if len(interval_labels) == 1:
         chosen_interval = interval_labels[0]
-        st.sidebar.markdown(f"**Prediction interval:** {chosen_interval}")
     else:
         interval_idx = interval_labels.index(default_interval)
         chosen_interval = st.sidebar.selectbox("Prediction interval", interval_labels, index=interval_idx)
