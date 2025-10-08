@@ -29,7 +29,7 @@ SOURCE_NORMALIZE = {
 DESIGN_CONFIGS: dict[str, dict] = {
     "FFF 36, r=0": {
         "prediction_files": {
-            "delta interval": BASE_DIR / "data.mopt_FFF36.xlsx",
+            "delta interval": BASE_DIR / "data.mopt_FFF36 1.xlsx",
         },
         "observed_file": BASE_DIR / "FFF36_neu.xlsx",
         "default_interval": "delta interval",
@@ -389,11 +389,11 @@ def build_facets(df: pd.DataFrame,
         # X-Achse fix –1…+1, Labels 10,15,20,25,30; extend frame to add space left/right
         fig.update_xaxes(
             title_text=x_title,
-            range=[-1.05, 1.05],
+            range=[-1.05, 2.05],
             autorange=False,
             tickmode="array",
-            tickvals=[-1, -0.5, 0, 0.5, 1],
-            ticktext=["10", "15", "20", "25", "30"],
+            tickvals=[-1, -0.5, 0, 0.5, 1, 1.5, 2],
+            ticktext=["10", "15", "20", "25", "30", "35", "40"],
             zeroline=False,
             row=r,
             col=c,
