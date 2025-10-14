@@ -39,6 +39,11 @@ DESIGN_CONFIGS: dict[str, dict] = {
 }
 
 
+def _decode_mean_arrival(coded: np.ndarray | pd.Series | float) -> np.ndarray:
+    """Convert coded mean arrival time (≈−1…+1) to real seconds (≈10…30)."""
+    return 20.0 + 10.0 * np.asarray(coded, dtype=float)
+
+
 def _available_designs() -> dict[str, dict]:
     available: dict[str, dict] = {}
     for name, cfg in DESIGN_CONFIGS.items():
@@ -359,11 +364,20 @@ def build_facets(df: pd.DataFrame,
             if not d.empty:
                 # Extend central curve to the plot edges
                 x_pred, y_pred = _extend_to_limits(d[x_col].to_numpy(dtype=float), d[line_col].to_numpy(dtype=float), x_left, x_right)
+                decoded_pred = _decode_mean_arrival(x_pred)
+                source_label = SOURCE_MAP.get(src, src)
                 fig.add_trace(
                     go.Scatter(x=x_pred, y=y_pred, mode="lines",
                                line=dict(color=colors.get(src, "#444444"), width=line_width),  # use dynamic width
-                               name=SOURCE_MAP.get(src, src),
-                               legendgroup=src, showlegend=(idx == 0), legendrank=10 + sources_ordered.index(src)),
+                               name=source_label,
+                               legendgroup=src, showlegend=(idx == 0), legendrank=10 + sources_ordered.index(src),
+                               customdata=np.column_stack((decoded_pred,)),
+                               hovertemplate=(
+                                   f"Assignment strategy: {ZONE_MAP.get(z, z)}<br>"
+                                   f"Arrival pattern: {source_label}<br>"
+                                   "Mean arrival time: %{customdata[0]:.2f} sec<br>"
+                                   "Mean order processing time: %{y:.2f} sec<extra></extra>"
+                               )),
                     row=r, col=c
                 )
 
@@ -373,15 +387,24 @@ def build_facets(df: pd.DataFrame,
                 if observed_value_column not in o.columns:
                     continue
                 if not o.empty and not o[observed_value_column].isna().all():
+                    decoded_obs = _decode_mean_arrival(o[x_col].to_numpy(dtype=float))
+                    zone_labels = o["zoning"].map(lambda val: ZONE_MAP.get(val, val))
+                    custom = np.column_stack((decoded_obs, zone_labels.to_numpy(dtype=object)))
                     fig.add_trace(
                         go.Scatter(
                             x=o[x_col], y=o[observed_value_column], mode="markers",
                             marker=dict(symbol="circle", size=6, color=colors.get(src, "#666"),
                                         line=dict(width=0.5, color="#222")),
-                            name="Observed mopt (colored)",
+                            name="Observation",
                             legendgroup="obs_mopt",
                             showlegend=False,
-                            hovertemplate="Observed mopt<br>Mean arrival time: %{x}<br>mopt: %{y}<extra></extra>",  # translated
+                            customdata=custom,
+                            hovertemplate=(
+                                "Observation<br>"
+                                "Assignment strategy: %{customdata[1]}<br>"
+                                "Mean arrival time: %{customdata[0]:.2f} sec<br>"
+                                "Mean order processing time: %{y:.2f} sec<extra></extra>"
+                            ),
                         ),
                         row=r, col=c
                     )
@@ -451,7 +474,7 @@ def build_facets(df: pd.DataFrame,
 
 def main():
     st.set_page_config(page_title="2-D curves (Delta)", layout="wide")  # translated
-    st.title("LOC of mean order processing time")
+    st.title("LOC with uncertainty bands of mean order processing time")
 
     st.sidebar.header("Display")
 

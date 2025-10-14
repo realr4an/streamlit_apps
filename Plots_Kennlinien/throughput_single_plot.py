@@ -83,6 +83,11 @@ ZONING_NORMALIZE = {
 }
 
 
+def _decode_mean_arrival(coded: np.ndarray | pd.Series | float) -> np.ndarray:
+    """Convert coded mean arrival time (≈−1…+1) to seconds (≈10…30)."""
+    return 20.0 + 10.0 * np.asarray(coded, dtype=float)
+
+
 def _build_pseudo_observations(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     pseudo_cfg = cfg.get("pseudo_observed")
     if not pseudo_cfg:
@@ -333,6 +338,7 @@ def build_single_plot(
         return x, y
 
     fig = go.Figure()
+    zone_label = ZONE_MAP.get(zone, zone)
     # --- Forecast lines + intervals ---
     for src in order:
         s = d[d["source"] == src].sort_values(xcol)
@@ -364,11 +370,21 @@ def build_single_plot(
         # Extend central prediction to axis limits
         x_left, x_right = -1.1, 1.1
         x_pred, y_pred = _extend_to_limits(s[xcol].to_numpy(), s[line_col].to_numpy(), x_left, x_right)
+        decoded_pred = _decode_mean_arrival(x_pred)
+        zone_label = ZONE_MAP.get(zone, zone)
+        source_label = SOURCE_MAP.get(src, src)
         fig.add_trace(go.Scatter(
             x=x_pred, y=y_pred, mode="lines",
-            name=SOURCE_MAP.get(src, src),
+            name=source_label,
             line=dict(color=colors.get(src, None), width=line_width),
-            legendgroup=src
+            legendgroup=src,
+            customdata=np.column_stack((decoded_pred,)),
+            hovertemplate=(
+                f"Assignment strategy: {zone_label}<br>"
+                f"Arrival pattern: {source_label}<br>"
+                "Mean arrival time: %{customdata[0]:.2f} sec<br>"
+                "Throughput: %{y:.2f} piece<extra></extra>"
+            )
         ))
 
     # --- Observed points ---
@@ -379,9 +395,13 @@ def build_single_plot(
                 continue
             if src_pts.empty or src_pts[observed_value_column].isna().all():
                 continue
-            custom = None
-            if "zoning" in src_pts.columns:
-                custom = np.array(src_pts["zoning"], dtype=object).reshape(-1, 1)
+            decoded_obs = _decode_mean_arrival(src_pts[xcol].to_numpy()) if xcol in src_pts.columns else _decode_mean_arrival(src_pts.get("systemload", src_pts.iloc[:, 0]).to_numpy())
+            zone_series = src_pts.get("zoning")
+            if zone_series is not None:
+                zone_labels = zone_series.map(lambda z: ZONE_MAP.get(z, z))
+            else:
+                zone_labels = pd.Series([zone_label] * len(src_pts))
+            custom = np.column_stack((decoded_obs, zone_labels.to_numpy(dtype=object)))
             fig.add_trace(
                 go.Scatter(
                     x=src_pts[xcol] if xcol in src_pts.columns else src_pts.get("systemload", src_pts.iloc[:,0]),
@@ -393,14 +413,15 @@ def build_single_plot(
                         color=colors.get(src, "#666"),
                         line=dict(width=0.5, color="#222"),
                     ),
-                    name="Observation (colored)",
+                    name="Observation",
                     legendgroup="obs",
                     showlegend=False,
                     customdata=custom,
                     hovertemplate=(
-                        "Observation" +
-                        ("<br>Assignment strategy: %{customdata[0]}" if custom is not None else "") +
-                        "<br>Mean arrival time: %{x}<br>Throughput: %{y}<extra></extra>"
+                        "Observation<br>"
+                        "Assignment strategy: %{customdata[1]}<br>"
+                        "Mean arrival time: %{customdata[0]:.2f} sec<br>"
+                        f"Throughput: %{{y:.2f}} piece<extra></extra>"
                     ),
                 )
             )
@@ -455,7 +476,7 @@ def build_single_plot(
 # ----------------------- App --------------------------------
 def main():
     st.set_page_config(page_title="Single Throughput Plot", layout="wide")
-    st.title("LOC of throughput")
+    st.title("LOC with uncertainty bands of throughput")
     # Sidebar control (instead of central UI)
     st.sidebar.header("Display")
 
