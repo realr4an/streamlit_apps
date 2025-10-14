@@ -390,7 +390,9 @@ def build_facets(df: pd.DataFrame,
                 if not o.empty and not o[observed_value_column].isna().all():
                     decoded_obs = _decode_mean_arrival(o[x_col].to_numpy(dtype=float))
                     zone_labels = o["zoning"].map(lambda val: ZONE_MAP.get(val, val))
-                    custom = np.column_stack((decoded_obs, zone_labels.to_numpy(dtype=object)))
+                    source_label = SOURCE_MAP.get(src, src)
+                    source_labels = pd.Series([source_label] * len(o))
+                    custom = np.column_stack((decoded_obs, zone_labels.to_numpy(dtype=object), source_labels.to_numpy(dtype=object)))
                     fig.add_trace(
                         go.Scatter(
                             x=o[x_col], y=o[observed_value_column], mode="markers",
@@ -403,6 +405,7 @@ def build_facets(df: pd.DataFrame,
                             hovertemplate=(
                                 "Observation<br>"
                                 "Assignment strategy: %{customdata[1]}<br>"
+                                "Arrival pattern: %{customdata[2]}<br>"
                                 "Mean arrival time: %{customdata[0]:.2f} sec<br>"
                                 "Mean order processing time: %{y:.2f} sec<extra></extra>"
                             ),

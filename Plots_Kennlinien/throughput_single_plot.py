@@ -402,7 +402,9 @@ def build_single_plot(
                 zone_labels = zone_series.map(lambda z: ZONE_MAP.get(z, z))
             else:
                 zone_labels = pd.Series([zone_label] * len(src_pts))
-            custom = np.column_stack((decoded_obs, zone_labels.to_numpy(dtype=object)))
+            source_label = SOURCE_MAP.get(src, src)
+            source_labels = pd.Series([source_label] * len(src_pts))
+            custom = np.column_stack((decoded_obs, zone_labels.to_numpy(dtype=object), source_labels.to_numpy(dtype=object)))
             fig.add_trace(
                 go.Scatter(
                     x=src_pts[xcol] if xcol in src_pts.columns else src_pts.get("systemload", src_pts.iloc[:,0]),
@@ -421,6 +423,7 @@ def build_single_plot(
                     hovertemplate=(
                         "Observation<br>"
                         "Assignment strategy: %{customdata[1]}<br>"
+                        "Arrival pattern: %{customdata[2]}<br>"
                         "Mean arrival time: %{customdata[0]:.2f} sec<br>"
                         f"Throughput: %{{y:.0f}} piece<extra></extra>"
                     ),
