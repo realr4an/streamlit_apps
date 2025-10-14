@@ -41,7 +41,8 @@ DESIGN_CONFIGS: dict[str, dict] = {
 
 def _decode_mean_arrival(coded: np.ndarray | pd.Series | float) -> np.ndarray:
     """Convert coded mean arrival time (≈−1…+1) to real seconds (≈10…30)."""
-    return 20.0 + 10.0 * np.asarray(coded, dtype=float)
+    decoded = 20.0 + 10.0 * np.asarray(coded, dtype=float)
+    return np.clip(decoded, 10.0, 30.0)
 
 
 def _available_designs() -> dict[str, dict]:
@@ -412,11 +413,11 @@ def build_facets(df: pd.DataFrame,
         # X-Achse fix –1…+1, Labels 10,15,20,25,30; extend frame to add space left/right
         fig.update_xaxes(
             title_text=x_title,
-            range=[-1.05, 2.05],
+            range=[-1.05, 1.05],
             autorange=False,
             tickmode="array",
-            tickvals=[-1, -0.5, 0, 0.5, 1, 1.5, 2],
-            ticktext=["10", "15", "20", "25", "30", "35", "40"],
+            tickvals=[-1, -0.5, 0, 0.5, 1],
+            ticktext=["10", "15", "20", "25", "30"],
             zeroline=False,
             row=r,
             col=c,

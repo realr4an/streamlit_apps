@@ -41,10 +41,10 @@ def _available_designs() -> dict[str, dict]:
 
 # ----------------------- Mappings ---------------------------
 ZONE_MAP = {
-    "BU": "Bottom-Up",
-    "TD": "Top-Down",
+    "BU": "Bottom-up",
+    "TD": "Top-down",
     "RA": "Random",
-    "SQ": "Shortest Queue",
+    "SQ": "Shortest queue",
 }
 SOURCE_MAP = {"FIX": "Fixed", "NO": "Normal", "EXP": "Exponential"}
 SOURCE_NORMALIZE = {
@@ -85,7 +85,8 @@ ZONING_NORMALIZE = {
 
 def _decode_mean_arrival(coded: np.ndarray | pd.Series | float) -> np.ndarray:
     """Convert coded mean arrival time (≈−1…+1) to seconds (≈10…30)."""
-    return 20.0 + 10.0 * np.asarray(coded, dtype=float)
+    decoded = 20.0 + 10.0 * np.asarray(coded, dtype=float)
+    return np.clip(decoded, 10.0, 30.0)
 
 
 def _build_pseudo_observations(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
@@ -383,7 +384,7 @@ def build_single_plot(
                 f"Assignment strategy: {zone_label}<br>"
                 f"Arrival pattern: {source_label}<br>"
                 "Mean arrival time: %{customdata[0]:.2f} sec<br>"
-                "Throughput: %{y:.2f} piece<extra></extra>"
+                "Throughput: %{y:.0f} piece<extra></extra>"
             )
         ))
 
@@ -421,7 +422,7 @@ def build_single_plot(
                         "Observation<br>"
                         "Assignment strategy: %{customdata[1]}<br>"
                         "Mean arrival time: %{customdata[0]:.2f} sec<br>"
-                        f"Throughput: %{{y:.2f}} piece<extra></extra>"
+                        f"Throughput: %{{y:.0f}} piece<extra></extra>"
                     ),
                 )
             )
