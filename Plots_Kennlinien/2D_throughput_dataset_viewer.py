@@ -478,7 +478,7 @@ def build_facets(df: pd.DataFrame,
 
 def main():
     st.set_page_config(page_title="2-D curves (Delta)", layout="wide")  # translated
-    st.title("LOC with uncertainty bands of mean order processing time")
+    st.title("LOCs with uncertainty bands of mean order processing time")
 
     st.sidebar.header("Display")
 
