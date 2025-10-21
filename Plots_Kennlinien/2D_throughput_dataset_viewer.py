@@ -374,7 +374,7 @@ def build_facets(df: pd.DataFrame,
                                legendgroup=src, showlegend=(idx == 0), legendrank=10 + sources_ordered.index(src),
                                customdata=np.column_stack((decoded_pred,)),
                                hovertemplate=(
-                                   f"Assignment strategy: {ZONE_MAP.get(z, z)}<br>"
+                                   f"Routing strategy: {ZONE_MAP.get(z, z)}<br>"
                                    f"Arrival pattern: {source_label}<br>"
                                    "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                                    "Mean order processing time: %{y:.2f} sec<extra></extra>"
@@ -404,7 +404,7 @@ def build_facets(df: pd.DataFrame,
                             customdata=custom,
                             hovertemplate=(
                                 "Observation<br>"
-                                "Assignment strategy: %{customdata[1]}<br>"
+                                "Routing strategy: %{customdata[1]}<br>"
                                 "Arrival pattern: %{customdata[2]}<br>"
                                 "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                                 "Mean order processing time: %{y:.2f} sec<extra></extra>"
@@ -523,7 +523,7 @@ def main():
 
     zone_options = ["BU","TD","RA","SQ"]
     zones = st.sidebar.multiselect(
-        "Assignment strategy", options=zone_options, default=zone_options,  # renamed
+        "Routing strategy", options=zone_options, default=zone_options,  # renamed
         format_func=lambda z: ZONE_MAP.get(z, z),
     )
 
@@ -567,7 +567,7 @@ def main():
         if not ({"low_delta","up_delta"}.issubset(df.columns) or {"low_corr","up_corr"}.issubset(df.columns)):
             st.warning("No interval bands found in the selected dataset – only the central line is drawn.")
     else:
-        st.info("Please select at least one assignment strategy and one arrival pattern.")
+        st.info("Please select at least one routing strategy and one arrival pattern.")
 
 if __name__ == "__main__":
     main()
