@@ -480,7 +480,7 @@ def build_single_plot(
 # ----------------------- App --------------------------------
 def main():
     st.set_page_config(page_title="Single Throughput Plot", layout="wide")
-    st.title("LOC with uncertainty bands of throughput")
+    st.title("LOCs with uncertainty bands of throughput")
     # Sidebar control (instead of central UI)
     st.sidebar.header("Display")
 
