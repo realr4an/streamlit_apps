@@ -290,7 +290,7 @@ def build_single_plot(
     observed_value_column: str = "throughput",
 ) -> go.Figure:
     xcol = _resolve_xcol(df)  # kodiert –1…+1
-    xtitle = "Mean arrival time (sec)"
+    xtitle = "Mean interarrival time (sec)"
 
     d = df[df["zoning"] == zone]
     if d.empty:
@@ -381,9 +381,9 @@ def build_single_plot(
             legendgroup=src,
             customdata=np.column_stack((decoded_pred,)),
             hovertemplate=(
-                f"Assignment strategy: {zone_label}<br>"
+                f"Routing strategy: {zone_label}<br>"
                 f"Arrival pattern: {source_label}<br>"
-                "Mean arrival time: %{customdata[0]:.2f} sec<br>"
+                "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                 "Throughput: %{y:.0f} piece<extra></extra>"
             )
         ))
@@ -422,9 +422,9 @@ def build_single_plot(
                     customdata=custom,
                     hovertemplate=(
                         "Observation<br>"
-                        "Assignment strategy: %{customdata[1]}<br>"
+                        "Routing strategy: %{customdata[1]}<br>"
                         "Arrival pattern: %{customdata[2]}<br>"
-                        "Mean arrival time: %{customdata[0]:.2f} sec<br>"
+                        "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                         f"Throughput: %{{y:.0f}} piece<extra></extra>"
                     ),
                 )
