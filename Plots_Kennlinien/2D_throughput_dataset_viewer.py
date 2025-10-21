@@ -256,7 +256,7 @@ def build_facets(df: pd.DataFrame,
 
     # Immer kodierte X-Achse –1…+1
     x_col   = _resolve_xcol(df)
-    x_title = "Mean arrival time (sec)"
+    x_title = "Mean interarrival time (sec)"
 
     sub = df[df["zoning"].isin(zones) & df["Source"].isin(sources)].copy()
     # Choose interval columns automatically from what's available in the loaded dataset
@@ -376,7 +376,7 @@ def build_facets(df: pd.DataFrame,
                                hovertemplate=(
                                    f"Assignment strategy: {ZONE_MAP.get(z, z)}<br>"
                                    f"Arrival pattern: {source_label}<br>"
-                                   "Mean arrival time: %{customdata[0]:.2f} sec<br>"
+                                   "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                                    "Mean order processing time: %{y:.2f} sec<extra></extra>"
                                )),
                     row=r, col=c
@@ -406,7 +406,7 @@ def build_facets(df: pd.DataFrame,
                                 "Observation<br>"
                                 "Assignment strategy: %{customdata[1]}<br>"
                                 "Arrival pattern: %{customdata[2]}<br>"
-                                "Mean arrival time: %{customdata[0]:.2f} sec<br>"
+                                "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                                 "Mean order processing time: %{y:.2f} sec<extra></extra>"
                             ),
                         ),
