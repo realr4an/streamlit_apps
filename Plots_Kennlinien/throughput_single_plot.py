@@ -382,7 +382,7 @@ def build_single_plot(
             customdata=np.column_stack((decoded_pred,)),
             hovertemplate=(
                 f"Routing strategy: {zone_label}<br>"
-                f"Arrival pattern: {source_label}<br>"
+                f"Interarrival time pattern: {source_label}<br>"
                 "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                 "Throughput: %{y:.0f} piece<extra></extra>"
             )
@@ -423,7 +423,7 @@ def build_single_plot(
                     hovertemplate=(
                         "Observation<br>"
                         "Routing strategy: %{customdata[1]}<br>"
-                        "Arrival pattern: %{customdata[2]}<br>"
+                        "Interarrival time pattern: %{customdata[2]}<br>"
                         "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                         f"Throughput: %{{y:.0f}} piece<extra></extra>"
                     ),
@@ -446,7 +446,7 @@ def build_single_plot(
         # a touch more outer padding
         margin=dict(l=54, r=40, t=28, b=50),
         legend=dict(
-            title=dict(text="Arrival pattern", font=dict(size=font_size-2, color="#000000")),
+            title=dict(text="Interarrival time pattern", font=dict(size=font_size-2, color="#000000")),
             font=dict(size=font_size-2, color="#000000")
         ),
         font=dict(size=font_size, color="#000000")
@@ -536,7 +536,7 @@ def main():
     ))
     default_sources = [s for s in ["FIX","NO","EXP"] if s in sources_all] or sources_all
     sources = st.sidebar.multiselect(
-        "Arrival pattern", options=sources_all, default=default_sources,
+        "Interarrival time pattern", options=sources_all, default=default_sources,
         format_func=lambda s: SOURCE_MAP.get(s, s),
         key="sources_select"
     )
@@ -574,7 +574,7 @@ def main():
         if not ({"low_delta","up_delta"}.issubset(df.columns) or {"low_corr","up_corr"}.issubset(df.columns)):
             st.warning("No interval bands found in the selected dataset – only the central line is plotted.")
     else:
-        st.info("Select at least one arrival pattern.")
+        st.info("Select at least one interarrival time pattern.")
 
 if __name__ == "__main__":
     main()
