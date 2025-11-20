@@ -19,7 +19,7 @@ DESIGN_CONFIGS: dict[str, dict] = {
         "prediction_files": {
             "delta interval": BASE_DIR / "data.throughput_FFF36_mitRand.xlsx",
         },
-        "observed_file": BASE_DIR / "FFF36_neu.xlsx",
+        "observed_file": BASE_DIR / "data_mitRand.xlsx",
         "default_interval": "delta interval",
         "line_column": "throughput",
         "observed_value_column": "throughput",
