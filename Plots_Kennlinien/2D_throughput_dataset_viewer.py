@@ -31,7 +31,7 @@ DESIGN_CONFIGS: dict[str, dict] = {
         "prediction_files": {
             "delta interval": BASE_DIR / "data.mopt_FFF36_mit8.xlsx",
         },
-        "observed_file": BASE_DIR / "data_mitRand.xlsx",
+        "observed_file": BASE_DIR / "data_mit8.xlsx",
         "default_interval": "delta interval",
         "line_column": "mopt",
         "observed_value_column": "mopt",
