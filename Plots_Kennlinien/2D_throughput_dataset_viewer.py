@@ -29,7 +29,7 @@ SOURCE_NORMALIZE = {
 DESIGN_CONFIGS: dict[str, dict] = {
     "FFF 36, r=0": {
         "prediction_files": {
-            "delta interval": BASE_DIR / "data.mopt_FFF36_mitRand.xlsx",
+            "delta interval": BASE_DIR / "data.mopt_FFF36_mit8.xlsx",
         },
         "observed_file": BASE_DIR / "data_mitRand.xlsx",
         "default_interval": "delta interval",
