@@ -382,7 +382,7 @@ def build_single_plot(
             customdata=np.column_stack((decoded_pred,)),
             hovertemplate=(
                 f"Routing strategy: {zone_label}<br>"
-                f"Interarrival time pattern: {source_label}<br>"
+                f"Interarrival time behavior: {source_label}<br>"
                 "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                 "Throughput: %{y:.0f} piece<extra></extra>"
             )
@@ -423,7 +423,7 @@ def build_single_plot(
                     hovertemplate=(
                         "Observation<br>"
                         "Routing strategy: %{customdata[1]}<br>"
-                        "Interarrival time pattern: %{customdata[2]}<br>"
+                        "Interarrival time behavior: %{customdata[2]}<br>"
                         "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                         f"Throughput: %{{y:.0f}} piece<extra></extra>"
                     ),
@@ -446,7 +446,7 @@ def build_single_plot(
         # a touch more outer padding
         margin=dict(l=54, r=40, t=28, b=50),
         legend=dict(
-            title=dict(text="Interarrival time pattern", font=dict(size=font_size-2, color="#000000")),
+            title=dict(text="Interarrival time behavior", font=dict(size=font_size-2, color="#000000")),
             font=dict(size=font_size-2, color="#000000")
         ),
         font=dict(size=font_size, color="#000000")
@@ -480,7 +480,7 @@ def build_single_plot(
 # ----------------------- App --------------------------------
 def main():
     st.set_page_config(page_title="Single Throughput Plot", layout="wide")
-    st.title("LOCs with uncertainty bands of throughput")
+    st.markdown("### LOCUBs of throughput")
     # Sidebar control (instead of central UI)
     st.sidebar.header("Display")
 
@@ -536,7 +536,7 @@ def main():
     ))
     default_sources = [s for s in ["FIX","NO","EXP"] if s in sources_all] or sources_all
     sources = st.sidebar.multiselect(
-        "Interarrival time pattern", options=sources_all, default=default_sources,
+        "Interarrival time behavior", options=sources_all, default=default_sources,
         format_func=lambda s: SOURCE_MAP.get(s, s),
         key="sources_select"
     )

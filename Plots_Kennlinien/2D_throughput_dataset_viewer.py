@@ -375,7 +375,7 @@ def build_facets(df: pd.DataFrame,
                                customdata=np.column_stack((decoded_pred,)),
                                hovertemplate=(
                                    f"Routing strategy: {ZONE_MAP.get(z, z)}<br>"
-                                   f"Interarrival time pattern: {source_label}<br>"
+                                   f"Interarrival time behavior: {source_label}<br>"
                                    "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                                    "Mean order processing time: %{y:.2f} sec<extra></extra>"
                                )),
@@ -405,7 +405,7 @@ def build_facets(df: pd.DataFrame,
                             hovertemplate=(
                                 "Observation<br>"
                                 "Routing strategy: %{customdata[1]}<br>"
-                                "Interarrival time pattern: %{customdata[2]}<br>"
+                                "Interarrival time behavior: %{customdata[2]}<br>"
                                 "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                                 "Mean order processing time: %{y:.2f} sec<extra></extra>"
                             ),
@@ -462,7 +462,7 @@ def build_facets(df: pd.DataFrame,
         margin=dict(l=6, r=6, t=60, b=6),
         legend=dict(
             orientation="v",
-            title=dict(text="Interarrival time pattern", font=dict(size=font_size-2, color="#000000")),
+            title=dict(text="Interarrival time behavior", font=dict(size=font_size-2, color="#000000")),
             x=1.02, xanchor="left", y=1, yanchor="top",
             font=dict(size=font_size-2, color="#000000"),
             bgcolor="rgba(255,255,255,0.0)",
@@ -478,7 +478,7 @@ def build_facets(df: pd.DataFrame,
 
 def main():
     st.set_page_config(page_title="2-D curves (Delta)", layout="wide")  # translated
-    st.title("LOCs with uncertainty bands of mean order processing time")
+    st.markdown("### LOCUBs of mean order processing time")
 
     st.sidebar.header("Display")
 
@@ -530,7 +530,7 @@ def main():
     sources_in_data = df["Source"].dropna().unique().tolist()
     source_options = _order_sources(sources_in_data)
     sources = st.sidebar.multiselect(
-        "Interarrival time pattern",
+        "Interarrival time behavior",
         options=source_options, default=source_options,
         format_func=lambda s: SOURCE_MAP.get(s, s),
     )
