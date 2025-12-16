@@ -1,7 +1,7 @@
 # ------------------------------------------------------------
 # throughput_single_plot_app.py
 # 2D-Plot (encoded system load –1…+1) with selectable prediction intervals
-# tuned for: data.throughput_dglm.xlsx
+# tuned for: data.throughput_dglm 1.xlsx
 # ------------------------------------------------------------
 from pathlib import Path
 import warnings
@@ -17,7 +17,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DESIGN_CONFIGS: dict[str, dict] = {
     "FFF 36, r=0": {
         "prediction_files": {
-            "delta interval": BASE_DIR / "data.throughput_dglm.xlsx",
+            "delta interval": BASE_DIR / "data.throughput_dglm 1.xlsx",
         },
         "observed_file": BASE_DIR / "Simulation_results.xlsx",
         "default_interval": "delta interval",
