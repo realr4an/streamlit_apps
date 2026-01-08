@@ -32,7 +32,7 @@ ZONING_NORMALIZE = {
     "RANDOM": "RA",
     "SHORTEST QUEUE": "SQ",
 }
-SOURCE_MAP = {"FIX": "Fixed", "NO": "Normal", "EXP": "Exponential"}
+SOURCE_MAP = {"FIX": "Fixed", "NO": "Truncated normal", "EXP": "Exponential"}
 SOURCE_NORMALIZE = {
     "FIXED": "FIX",
     "FIX": "FIX",
