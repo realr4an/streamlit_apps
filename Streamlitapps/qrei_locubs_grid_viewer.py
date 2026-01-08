@@ -1,6 +1,6 @@
 # ------------------------------------------------------------
-# qrei_locubs_app.py
-# LOCUBs for order processing time (mean/median/quantiles)
+# qrei_locubs_grid_viewer.py
+# 12 subplots (4 strategies x 3 behaviors) for each target metric
 # ------------------------------------------------------------
 from pathlib import Path
 import warnings
@@ -13,6 +13,9 @@ import streamlit as st
 
 BASE_DIR = Path(__file__).resolve().parent
 OBSERVED_FILE = BASE_DIR / "Simulation_results_24.xlsx"
+
+ZONE_ORDER = ["BU", "TD", "RA", "SQ"]
+SOURCE_ORDER = ["FIX", "NO", "EXP"]
 
 ZONE_MAP = {
     "BU": "Bottom-up",
@@ -30,7 +33,6 @@ ZONING_NORMALIZE = {
     "SHORTEST QUEUE": "SQ",
 }
 SOURCE_MAP = {"FIX": "Fixed", "NO": "Normal", "EXP": "Exponential"}
-SOURCE_ORDER = ["FIX", "NO", "EXP"]
 SOURCE_NORMALIZE = {
     "FIXED": "FIX",
     "FIX": "FIX",
@@ -84,9 +86,7 @@ TARGET_CONFIGS: dict[str, dict] = {
 def _normalize_source_value(val: str) -> str:
     s = str(val).upper().strip()
     s = SOURCE_NORMALIZE.get(s, s)
-    if s.startswith("FIX"):
-        return "FIX"
-    if s == "TA":
+    if s.startswith("FIX") or s == "TA":
         return "FIX"
     if s.startswith("EX") or s.startswith("EXP"):
         return "EXP"
@@ -96,7 +96,6 @@ def _normalize_source_value(val: str) -> str:
 
 
 def _decode_mean_arrival(coded: np.ndarray | pd.Series | float) -> np.ndarray:
-    """Convert coded mean arrival time (-1..+1) to seconds (10..30)."""
     decoded = 20.0 + 10.0 * np.asarray(coded, dtype=float)
     return np.clip(decoded, 10.0, 30.0)
 
@@ -146,10 +145,31 @@ def _resolve_xcol(df: pd.DataFrame) -> str:
     return candidates[0]
 
 
-def _order_sources(sources: list[str]) -> list[str]:
-    in_data_ordered = [s for s in SOURCE_ORDER if s in sources]
-    leftovers = [s for s in sources if s not in SOURCE_ORDER]
-    return in_data_ordered + leftovers
+def _extend_to_limits(
+    x: np.ndarray, y: np.ndarray, left: float, right: float
+) -> tuple[np.ndarray, np.ndarray]:
+    if len(x) == 0:
+        return x, y
+    order = np.argsort(x)
+    x = x[order]
+    y = y[order]
+    if x[0] > left:
+        if len(x) >= 2 and (x[1] - x[0]) != 0:
+            slope = (y[1] - y[0]) / (x[1] - x[0])
+        else:
+            slope = 0.0
+        y_left = y[0] + slope * (left - x[0])
+        x = np.insert(x, 0, left)
+        y = np.insert(y, 0, y_left)
+    if x[-1] < right:
+        if len(x) >= 2 and (x[-1] - x[-2]) != 0:
+            slope = (y[-1] - y[-2]) / (x[-1] - x[-2])
+        else:
+            slope = 0.0
+        y_right = y[-1] + slope * (right - x[-1])
+        x = np.append(x, right)
+        y = np.append(y, y_right)
+    return x, y
 
 
 def _safe_min_max(values: pd.Series) -> tuple[float | None, float | None]:
@@ -263,15 +283,16 @@ def load_observed(path: Path) -> pd.DataFrame:
     return df
 
 
-def build_facets(
+def build_grid(
     df: pd.DataFrame,
     zones: list[str],
     sources: list[str],
     colors: dict[str, str],
     ribbon_alpha: float,
     line_width: int,
-    plot_size: int,
     font_size: int,
+    plot_width: int,
+    plot_height: int,
     y_title: str,
     hover_label: str,
     observed: pd.DataFrame | None = None,
@@ -301,57 +322,29 @@ def build_facets(
                 & (observed["source"].isin(sources))
             ].copy()
 
-    order = ["BU", "TD", "RA", "SQ"]
-    zones = [z for z in order if z in zones]
+    titles = []
+    for z in zones:
+        for s in sources:
+            titles.append(f"{ZONE_MAP.get(z, z)} / {SOURCE_MAP.get(s, s)}")
 
-    titles = [ZONE_MAP.get(z, z) for z in zones]
-    while len(titles) < 4:
-        titles.append("")
     fig = make_subplots(
-        rows=2,
-        cols=2,
+        rows=len(zones),
+        cols=len(sources),
         subplot_titles=titles,
-        horizontal_spacing=0.22,
-        vertical_spacing=0.18,
+        horizontal_spacing=0.08,
+        vertical_spacing=0.10,
     )
-    cells = [(1, 1), (1, 2), (2, 1), (2, 2)]
-
-    sources_ordered = _order_sources(sources)
-
-    def _extend_to_limits(x: np.ndarray, y: np.ndarray, left: float, right: float) -> tuple[np.ndarray, np.ndarray]:
-        if len(x) == 0:
-            return x, y
-        x_sorted_idx = np.argsort(x)
-        x = x[x_sorted_idx]
-        y = y[x_sorted_idx]
-        if x[0] > left:
-            if len(x) >= 2 and (x[1] - x[0]) != 0:
-                slope = (y[1] - y[0]) / (x[1] - x[0])
-            else:
-                slope = 0.0
-            y_left = y[0] + slope * (left - x[0])
-            x = np.insert(x, 0, left)
-            y = np.insert(y, 0, y_left)
-        if x[-1] < right:
-            if len(x) >= 2 and (x[-1] - x[-2]) != 0:
-                slope = (y[-1] - y[-2]) / (x[-1] - x[-2])
-            else:
-                slope = 0.0
-            y_right = y[-1] + slope * (right - x[-1])
-            x = np.append(x, right)
-            y = np.append(y, y_right)
-        return x, y
 
     x_left, x_right = -1.1, 1.1
 
-    for idx, z in enumerate(zones):
-        r, c = cells[idx]
-        d_z = sub[sub["zoning"] == z]
-        obs_z = obs_sub[obs_sub["zoning"] == z] if not obs_sub.empty else pd.DataFrame()
+    for r, z in enumerate(zones, start=1):
+        for c, src in enumerate(sources, start=1):
+            d = sub[(sub["zoning"] == z) & (sub["source"] == src)].sort_values(x_col)
+            obs = pd.DataFrame()
+            if not obs_sub.empty:
+                obs = obs_sub[(obs_sub["zoning"] == z) & (obs_sub["source"] == src)]
 
-        for src in sources_ordered:
-            d = d_z[d_z["source"] == src].sort_values(x_col)
-            if d.empty and (obs_z.empty or obs_z[obs_z["source"] == src].empty):
+            if d.empty and (obs.empty or obs_sub.empty):
                 continue
 
             if not d.empty and has_bands:
@@ -375,7 +368,6 @@ def build_facets(
                         line=dict(width=0),
                         hoverinfo="skip",
                         showlegend=False,
-                        legendgroup=src,
                     ),
                     row=r,
                     col=c,
@@ -390,7 +382,6 @@ def build_facets(
                         fillcolor=_rgba(colors.get(src, "#888888"), ribbon_alpha),
                         hoverinfo="skip",
                         showlegend=False,
-                        legendgroup=src,
                     ),
                     row=r,
                     col=c,
@@ -404,21 +395,17 @@ def build_facets(
                     x_right,
                 )
                 decoded_pred = _decode_mean_arrival(x_pred)
-                source_label = SOURCE_MAP.get(src, src)
                 fig.add_trace(
                     go.Scatter(
                         x=x_pred,
                         y=y_pred,
                         mode="lines",
                         line=dict(color=colors.get(src, "#444444"), width=line_width),
-                        name=source_label,
-                        legendgroup=src,
-                        showlegend=(idx == 0),
-                        legendrank=10 + sources_ordered.index(src),
+                        showlegend=False,
                         customdata=np.column_stack((decoded_pred,)),
                         hovertemplate=(
                             f"Routing strategy: {ZONE_MAP.get(z, z)}<br>"
-                            f"Interarrival time behavior: {source_label}<br>"
+                            f"Interarrival time behavior: {SOURCE_MAP.get(src, src)}<br>"
                             "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
                             f"{hover_label}: %{{y:.2f}} sec<extra></extra>"
                         ),
@@ -427,106 +414,100 @@ def build_facets(
                     col=c,
                 )
 
-            if show_obs_points and not obs_z.empty:
-                o = obs_z[obs_z["source"] == src].sort_values(x_col)
-                if observed_value_column not in o.columns:
+            if show_obs_points and not obs.empty:
+                if observed_value_column not in obs.columns:
                     continue
-                if not o.empty and not o[observed_value_column].isna().all():
-                    decoded_obs = _decode_mean_arrival(o[x_col].to_numpy(dtype=float))
-                    zone_labels = o["zoning"].map(lambda val: ZONE_MAP.get(val, val))
-                    source_label = SOURCE_MAP.get(src, src)
-                    source_labels = pd.Series([source_label] * len(o))
-                    custom = np.column_stack(
-                        (
-                            decoded_obs,
-                            zone_labels.to_numpy(dtype=object),
-                            source_labels.to_numpy(dtype=object),
-                        )
-                    )
-                    fig.add_trace(
-                        go.Scatter(
-                            x=o[x_col],
-                            y=o[observed_value_column],
-                            mode="markers",
-                            marker=dict(
-                                symbol="circle",
-                                size=6,
-                                color=colors.get(src, "#666"),
-                                line=dict(width=0.5, color="#222"),
-                            ),
-                            name="Observation",
-                            legendgroup=src,
-                            showlegend=False,
-                            customdata=custom,
-                            hovertemplate=(
-                                "Observation<br>"
-                                "Routing strategy: %{customdata[1]}<br>"
-                                "Interarrival time behavior: %{customdata[2]}<br>"
-                                "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
-                                f"{hover_label}: %{{y:.2f}} sec<extra></extra>"
-                            ),
+                if obs[observed_value_column].isna().all():
+                    continue
+                decoded_obs = _decode_mean_arrival(obs[x_col].to_numpy(dtype=float))
+                custom = np.column_stack((decoded_obs,))
+                fig.add_trace(
+                    go.Scatter(
+                        x=obs[x_col],
+                        y=obs[observed_value_column],
+                        mode="markers",
+                        marker=dict(
+                            symbol="circle",
+                            size=6,
+                            color=colors.get(src, "#666"),
+                            line=dict(width=0.5, color="#222"),
                         ),
-                        row=r,
-                        col=c,
-                    )
+                        showlegend=False,
+                        customdata=custom,
+                        hovertemplate=(
+                            "Observation<br>"
+                            f"Routing strategy: {ZONE_MAP.get(z, z)}<br>"
+                            f"Interarrival time behavior: {SOURCE_MAP.get(src, src)}<br>"
+                            "Mean interarrival time: %{customdata[0]:.2f} sec<br>"
+                            f"{hover_label}: %{{y:.2f}} sec<extra></extra>"
+                        ),
+                    ),
+                    row=r,
+                    col=c,
+                )
 
-        fig.update_xaxes(
-            title_text=x_title,
-            range=[-1.05, 1.05],
-            autorange=False,
-            tickmode="array",
-            tickvals=[-1, -0.5, 0, 0.5, 1],
-            ticktext=["10", "15", "20", "25", "30"],
-            zeroline=False,
-            row=r,
-            col=c,
-            title_font=dict(size=font_size, color="#000000"),
-            tickfont=dict(size=font_size - 2, color="#000000"),
-        )
+            fig.update_xaxes(
+                title_text=x_title,
+                range=[-1.05, 1.05],
+                autorange=False,
+                tickmode="array",
+                tickvals=[-1, -0.5, 0, 0.5, 1],
+                ticktext=["10", "15", "20", "25", "30"],
+                zeroline=False,
+                row=r,
+                col=c,
+                title_font=dict(size=font_size, color="#000000"),
+                tickfont=dict(size=font_size - 2, color="#000000"),
+            )
 
-        y_axis = dict(
-            title_text=y_title,
-            title_font=dict(size=font_size, color="#000000"),
-            tickfont=dict(size=font_size - 2, color="#000000"),
-            zeroline=False,
-        )
-        if y_range is not None:
-            y_axis["range"] = y_range
-            y_axis["autorange"] = False
-        fig.update_yaxes(row=r, col=c, **y_axis)
+            y_axis = dict(
+                title_text=y_title,
+                title_font=dict(size=font_size, color="#000000"),
+                tickfont=dict(size=font_size - 2, color="#000000"),
+                zeroline=False,
+            )
+            if y_range is not None:
+                y_axis["range"] = y_range
+                y_axis["autorange"] = False
+            fig.update_yaxes(row=r, col=c, **y_axis)
 
     fig.update_layout(
-        height=plot_size,
-        width=plot_size,
+        height=plot_height,
+        width=plot_width,
         font=dict(size=font_size, color="#000000"),
-        margin=dict(l=6, r=6, t=60, b=6),
-        legend=dict(
-            orientation="v",
-            title=dict(text="Interarrival time behavior", font=dict(size=font_size - 2, color="#000000")),
-            x=1.02,
-            xanchor="left",
-            y=1,
-            yanchor="top",
-            font=dict(size=font_size - 2, color="#000000"),
-            bgcolor="rgba(255,255,255,0.0)",
-            borderwidth=0,
-            groupclick="togglegroup",
-        ),
+        margin=dict(l=6, r=6, t=70, b=6),
+        showlegend=False,
     )
     if hasattr(fig.layout, "annotations"):
         for ann in fig.layout.annotations:
-            if ann.text in titles:
-                ann.font = dict(size=font_size, color="#000000")
+            ann.font = dict(size=font_size - 2, color="#000000")
     return fig
 
 
+def _available_targets() -> dict[str, dict]:
+    available = {}
+    for name, cfg in TARGET_CONFIGS.items():
+        preds = {
+            label: path for label, path in cfg.get("prediction_files", {}).items()
+            if path.exists()
+        }
+        if preds:
+            available[name] = {**cfg, "prediction_files": preds}
+    return available
+
+
 def main() -> None:
-    st.set_page_config(page_title="LOCUBs: Order Processing Time", layout="wide")
+    st.set_page_config(page_title="LOCUBs (Grid)", layout="wide")
     st.sidebar.header("Display")
 
-    target_labels = list(TARGET_CONFIGS.keys())
+    available = _available_targets()
+    if not available:
+        st.error("No QREI datasets found next to this script.")
+        st.stop()
+
+    target_labels = list(available.keys())
     target_choice = st.sidebar.radio("Target metric", options=target_labels)
-    cfg = TARGET_CONFIGS[target_choice]
+    cfg = available[target_choice]
 
     st.markdown(f"### {cfg['title']}")
 
@@ -538,36 +519,9 @@ def main() -> None:
         chosen_interval = st.sidebar.selectbox("Prediction interval", interval_labels)
 
     df = load_predictions(predictions[chosen_interval], cfg["prediction_column"])
-
     observed_df = load_observed(OBSERVED_FILE)
-    if OBSERVED_FILE.exists() and observed_df.empty:
-        st.sidebar.info("Observed file found but no usable observations after loading.")
 
-    zone_options = ["BU", "TD", "RA", "SQ"]
-    zones = st.sidebar.multiselect(
-        "Routing strategy",
-        options=zone_options,
-        default=zone_options,
-        format_func=lambda z: ZONE_MAP.get(z, z),
-    )
-
-    sources_all = sorted(
-        set(df.get("source", pd.Series(dtype=str)).dropna().unique().tolist())
-        | set(observed_df.get("source", pd.Series(dtype=str)).dropna().unique().tolist())
-    )
-    sources_all = _order_sources(sources_all)
-    sources = st.sidebar.multiselect(
-        "Interarrival time behavior",
-        options=sources_all,
-        default=sources_all,
-        format_func=lambda s: SOURCE_MAP.get(s, s),
-    )
-
-    show_obs_default = not observed_df.empty
-    show_obs_points = st.sidebar.checkbox(
-        "Show observed values",
-        value=show_obs_default,
-    )
+    show_obs_points = st.sidebar.checkbox("Show observed values", value=not observed_df.empty)
     if show_obs_points and observed_df.empty:
         st.sidebar.info("No observed values available for this dataset.")
 
@@ -578,31 +532,35 @@ def main() -> None:
     col_exp = st.sidebar.color_picker("Exponential", "#009E73")
     colors = {"FIX": col_fix, "NO": col_no, "EXP": col_exp}
     line_width = st.sidebar.slider("Line width", 1, 6, 2, 1)
-    font_size = st.sidebar.slider("Base font size", 10, 40, 20, 1)
-    plot_size = st.sidebar.slider("Plot size (px)", 600, 1400, 1000, 50)
+    font_size = st.sidebar.slider("Base font size", 10, 36, 18, 1)
+    plot_width = st.sidebar.slider("Plot width (px)", 900, 2000, 1500, 50)
+    plot_height = st.sidebar.slider("Plot height (px)", 900, 2400, 1700, 50)
     ribbon_alpha = st.sidebar.slider("Ribbon transparency", 0.05, 0.9, 0.18, 0.01)
 
-    if zones and sources:
-        fig = build_facets(
-            df,
-            zones,
-            sources,
-            colors,
-            ribbon_alpha,
-            line_width,
-            plot_size,
-            font_size,
-            cfg["y_title"],
-            cfg["hover_label"],
-            observed=observed_df,
-            show_obs_points=show_obs_points,
-            observed_value_column=cfg["observed_column"],
-        )
-        st.plotly_chart(fig, use_container_width=False, key=f"facets-{target_choice}")
-        if not ({"low_delta", "up_delta"}.issubset(df.columns) or {"low_corr", "up_corr"}.issubset(df.columns)):
-            st.warning("No interval bands found in the selected dataset - only the central line is drawn.")
-    else:
-        st.info("Please select at least one routing strategy and one interarrival time pattern.")
+    zones = [z for z in ZONE_ORDER if z in df["zoning"].dropna().unique().tolist()]
+    sources = [s for s in SOURCE_ORDER if s in df["source"].dropna().unique().tolist()]
+    if len(zones) != len(ZONE_ORDER) or len(sources) != len(SOURCE_ORDER):
+        st.sidebar.info("Some strategies or behaviors are missing in the dataset.")
+
+    fig = build_grid(
+        df,
+        zones,
+        sources,
+        colors,
+        ribbon_alpha,
+        line_width,
+        font_size,
+        plot_width,
+        plot_height,
+        cfg["y_title"],
+        cfg["hover_label"],
+        observed=observed_df,
+        show_obs_points=show_obs_points,
+        observed_value_column=cfg["observed_column"],
+    )
+    st.plotly_chart(fig, use_container_width=False, key=f"grid-{target_choice}")
+    if not ({"low_delta", "up_delta"}.issubset(df.columns) or {"low_corr", "up_corr"}.issubset(df.columns)):
+        st.warning("No interval bands found in the selected dataset - only the central line is drawn.")
 
 
 if __name__ == "__main__":
